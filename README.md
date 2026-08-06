@@ -46,7 +46,7 @@ Google Workspace (Google Apps Script) だけで構築された、高速・高機
 4. **拡張サービスの有効化**: 左側メニューの「サービス ＋」から、以下のAPIを追加します。
    * `Admin SDK API`
    * `Google Calendar API`
-   * `Google Drive API`
+   * `Google Drive API（v2を使用）`
    * `Tasks API`
 5. **スクリプトプロパティの設定**: 左側メニューの「プロジェクトの設定（歯車アイコン）」から以下を追加します。
    * `LINK_SPREADSHEET_ID` : 手順2で控えたスプレッドシートのID
@@ -62,13 +62,16 @@ Google Workspace (Google Apps Script) だけで構築された、高速・高機
 3. **拡張サービスの有効化**: 左側メニューの「サービス ＋」から、以下のAPIを追加します。
    * `Admin SDK API`
    * `Google Calendar API`
-   * `Google Drive API`
+   * `Google Drive API（v2を使用）`
    * `Tasks API`
 4. **スクリプトプロパティの設定**: 左側メニューの「プロジェクトの設定（歯車アイコン）」から以下を追加します。（※ `LINK_SPREADSHEET_ID` の設定は不要です）
    * `WORKFLOW_FOLDER_ID` : ワークフロー（電子承認・決裁）の添付ファイルを保存するGoogleドライブのフォルダID
 5. **データベースの初期化**: エディタ上部の関数プルダウンから `initializeDatabaseSheets` を選択し、「実行」ボタンを押します。
    *(※初回実行時は「承認が必要です」という警告が出ます。「権限を確認」>「詳細」>「安全ではないページに移動」から許可を行ってください)*
 6. **デプロイと利用開始**: 右上の「デプロイ > 新しいデプロイ」から種類を「ウェブアプリ」として公開し、発行されたURLにアクセスすればポータルの利用を開始できます。
+
+### 【参考】コードの反映およびサービスの追加が完了した状態
+<img width="768" alt="Image" src="https://github.com/user-attachments/assets/129ad2f8-8da8-423f-a199-28a7e5264347" />
 
 ---
 
