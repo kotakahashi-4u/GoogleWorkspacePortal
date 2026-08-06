@@ -42,7 +42,7 @@ Google Workspace (Google Apps Script) だけで構築された、高速・高機
 
 1. [Google Apps Script](https://script.google.com/)にアクセスし、「新しいプロジェクト」を作成します。
 2. データベース用の「新規Googleスプレッドシート」を別途作成し、URLからスプレッドシートIDを控えておきます。
-3. 本リポジトリの `.html` および `.gs` ファイルをプロジェクトにコピーして配置します。
+3. [本リポジトリ](https://github.com/kotakahashi-4u/GoogleWorkspacePortal/tree/main/code)の `.html` および `.gs` ファイルをプロジェクトにコピーして配置します。
 4. **拡張サービスの有効化**: 左側メニューの「サービス ＋」から、以下のAPIを追加します。
    * `Admin SDK API`
    * `Google Calendar API`
@@ -61,7 +61,7 @@ Google Workspace (Google Apps Script) だけで構築された、高速・高機
 ### パターンB：コンテナバインド型
 
 1. 新規Googleスプレッドシートを作成し、上部メニューの「拡張機能」から `Apps Script` を開きます。（※このスプレッドシートが自動的にデータベースとして認識されます）
-2. 本リポジトリの `.html` および `.gs` ファイルをプロジェクトにコピーして配置します。
+2. [本リポジトリ](https://github.com/kotakahashi-4u/GoogleWorkspacePortal/tree/main/code)の `.html` および `.gs` ファイルをプロジェクトにコピーして配置します。
 3. **拡張サービスの有効化**: 左側メニューの「サービス ＋」から、以下のAPIを追加します。
    * `Admin SDK API`
    * `Google Calendar API`
