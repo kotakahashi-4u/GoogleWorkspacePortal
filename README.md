@@ -2,10 +2,13 @@
 
 Google Workspace (Google Apps Script) だけで構築された、高速・高機能・セキュアな社内ポータルシステムです。
 
-<a href="https://corp-4u.com/" target="_blank" rel="noopener noreferrer"><img src="https://img.shields.io/badge/Developed_by-4U,_Inc.-1abc9c.svg" alt="Developed by 4U, Inc."></a>
-<a href="https://www.youtube.com/@google-school" target="_blank" rel="noopener noreferrer"><img src="https://img.shields.io/badge/YouTube-こーすけ先生のGoogle塾-FF0000.svg" alt="YouTube"></a>
-<a href="LICENSE" target="_blank" rel="noopener noreferrer"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT"></a>
+[![Developed by 4U, Inc.](https://img.shields.io/badge/Developed_by-4U,_Inc.-1abc9c.svg)](https://corp-4u.com/)
+[![YouTube](https://img.shields.io/badge/YouTube-こーすけ先生のGoogle塾-FF0000.svg)](https://www.youtube.com/@google-school)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
+> **💡 Tips: リンクを別タブで開くには**  
+> GitHubの仕様上、各種リンクは同じタブで開かれます。現在のマニュアルを残したままリンク先を閲覧したい場合は、**`Ctrl` キー（Macの場合は `Command` キー）を押しながらクリック**するか、マウスのホイールボタンでクリックしてください。
+> 
 ## 特徴 (Features)
 
 本ポータルは、単なるGASアプリの枠を超えたモダンなユーザー体験とセキュリティを提供します。
@@ -35,7 +38,7 @@ Google Workspace (Google Apps Script) だけで構築された、高速・高機
 
 ### パターンA：スタンドアロン型（推奨）
 
-1. <a href="https://script.google.com/" target="_blank" rel="noopener noreferrer">Google Apps Script</a>にアクセスし、「新しいプロジェクト」を作成します。
+1. [Google Apps Script](https://script.google.com/)にアクセスし、「新しいプロジェクト」を作成します。
 2. データベース用の「新規Googleスプレッドシート」を別途作成し、URLからスプレッドシートIDを控えておきます。
 3. 本リポジトリの `.html` および `.gs` ファイルをプロジェクトにコピーして配置します。
 4. **拡張サービスの有効化**: 左側メニューの「サービス ＋」から、以下のAPIを追加します。
@@ -45,7 +48,7 @@ Google Workspace (Google Apps Script) だけで構築された、高速・高機
    * `Tasks API`
 5. **スクリプトプロパティの設定**: 左側メニューの「プロジェクトの設定（歯車アイコン）」から以下を追加します。
    * `LINK_SPREADSHEET_ID` : 手順2で控えたスプレッドシートのID
-   * `WORKFLOW_FOLDER_ID` : 添付ファイルを保存するGoogleドライブのフォルダID
+   * `WORKFLOW_FOLDER_ID` : ワークフロー（電子承認・決裁）の添付ファイルを保存するGoogleドライブのフォルダID
 6. **データベースの初期化**: エディタ上部の関数プルダウンから `initializeDatabaseSheets` を選択し、「実行」ボタンを押します。
    *(※初回実行時は「承認が必要です」という警告が出ます。「権限を確認」>「詳細」>「安全ではないページに移動」から許可を行ってください)*
 7. **デプロイと利用開始**: 右上の「デプロイ > 新しいデプロイ」から種類を「ウェブアプリ」として公開し、発行されたURLにアクセスすればポータルの利用を開始できます。
@@ -60,7 +63,7 @@ Google Workspace (Google Apps Script) だけで構築された、高速・高機
    * `Google Drive API`
    * `Tasks API`
 4. **スクリプトプロパティの設定**: 左側メニューの「プロジェクトの設定（歯車アイコン）」から以下を追加します。（※ `LINK_SPREADSHEET_ID` の設定は不要です）
-   * `WORKFLOW_FOLDER_ID` : 添付ファイルを保存するGoogleドライブのフォルダID
+   * `WORKFLOW_FOLDER_ID` : ワークフロー（電子承認・決裁）の添付ファイルを保存するGoogleドライブのフォルダID
 5. **データベースの初期化**: エディタ上部の関数プルダウンから `initializeDatabaseSheets` を選択し、「実行」ボタンを押します。
    *(※初回実行時は「承認が必要です」という警告が出ます。「権限を確認」>「詳細」>「安全ではないページに移動」から許可を行ってください)*
 6. **デプロイと利用開始**: 右上の「デプロイ > 新しいデプロイ」から種類を「ウェブアプリ」として公開し、発行されたURLにアクセスすればポータルの利用を開始できます。
@@ -73,7 +76,7 @@ Google Workspace (Google Apps Script) だけで構築された、高速・高機
 
 #### **機能説明**
 
-ユーザーごとの業務スタイルや好みに合わせてメイン画面を自在にアレンジできるダッシュボード機能です。ポータル画面上に配置される各種ウィジェット（Gmail未読、Drive最近のファイル、カレンダー、社内掲示板、承認・確認待ちタスク、BCP防災情報、リンク集など）の並び順や幅（25%、50%、75%、100%）をドラッグ＆ドロップで簡単にカスタマイズできます。また、ポータル全体のテーマカラー変更（Google Blue、Google Red、Google Yellow、Google Green、コーポレートカラー\[\#1abc9c\]）や、画面右上のワッフルメニュー（アプリランチャー）内に表示するショートカットリンクの選択・独自カスタムURLの追加にも対応しています。
+ユーザーごとの業務スタイルや好みに合わせてメイン画面を自在にアレンジできるダッシュボード機能です。ポータル画面上に配置される各種ウィジェット（Gmail最新トレイ、Google Driveエクスプローラ［最近のファイル/マイドライブ/共有ドライブの階層ブラウジング対応］、カレンダー、社内掲示板、承認・確認待ちタスク、BCP防災情報、リンク集など）の並び順や幅（25%、50%、75%、100%）をドラッグ＆ドロップで簡単にカスタマイズできます。
 
 #### **利用方法**
 
@@ -194,7 +197,7 @@ Google Cloud Searchが利用可能なGoogle Workspaceライセンス（Business 
   * 「運行情報リンク」: 設定された鉄道会社・航空会社等のボタンをクリックして運行情報ページを別タブで表示します。  
   * 「自宅・勤務先エリアの天気」: 自宅・勤務先の気象情報を閲覧できます。レーダーアイコンをクリックすると該当地域のYahoo\!雨雲レーダーを直接開きます。  
   * 「気象庁: 警報・注意報の詳細を見る」リンクから気象庁の防災情報サイトへアクセスできます。  
-* **個人設定画面**: 「防災・運行情報の設定」セクションで、自宅エリア（47都道府県・地域）と勤務先エリアを選択し、表示したい運行情報リンクの選択・独自路線URL의追加が可能です。
+* **個人設定画面**: 「防災・運行情報の設定」セクションで、自宅エリア（47都道府県・地域）と勤務先エリアを選択し、表示したい運行情報リンクの選択・独自路線URLの追加が可能です。
 
 #### **ユーザーが準備すべきこと**
 
@@ -216,7 +219,22 @@ Google Cloud Searchが利用可能なGoogle Workspaceライセンス（Business 
 
 #### **ユーザーが準備すべきこと**
 
-スプレッドシートの「管理者一覧」シートに管理者権限を付与するユーザーのメールアドレスを追加登録しておくこと。また、GASのスクリプトプロパティ `LINK_SPREADSHEET_ID` が正しく設定されていること。
+データベース用スプレッドシートの `AdminList` シートのA列に、管理者権限を付与するユーザーのメールアドレスを追加登録しておくこと（ヘッダー行は不要です）。また、スタンドアロン型で導入した場合は、GASのスクリプトプロパティ `LINK_SPREADSHEET_ID` が正しく設定されている必要があります。
+
+### **9. グローバル・多言語対応 (i18n) 機能**
+
+#### **機能説明**
+
+海外拠点や多様な国籍のメンバーが在籍するグローバルなチーム環境でもそのまま導入できるよう、システム全体が多言語（日本語・英語）に完全対応しています。ブラウザやGoogleアカウントの言語設定（ロケール）をシステムが自動検知し、ユーザーごとに最適な言語でUIを表示します。
+
+#### **利用方法**
+
+* **動的UI切り替え**: 画面上のメニュー、ボタン、説明文などのフロントエンドテキストが、アクセスしたユーザーの言語設定に合わせて自動で切り替わります（現在、日本語 `ja` と英語 `en` に対応）。
+* **バックエンドエラーのローカライズ**: システムの裏側（GASサーバー側）で発生したアクセス権限エラーや入力不備のアラートメッセージも、実行ユーザーの言語に合わせて翻訳されて画面にフィードバックされます。
+
+#### **ユーザーが準備すべきこと**
+
+特段不要（ユーザーのGoogle Workspaceアカウントの言語設定が自動的に適用されます）。
 
 ---
 
@@ -228,8 +246,8 @@ Google Cloud Searchが利用可能なGoogle Workspaceライセンス（Business 
 本システムに関する導入サポート、環境に合わせたカスタマイズ開発、および継続的な保守・運用サポートにつきましては、**有償サービス**として承っております。
 Google Workspace全体の活用コンサルティングも含め、ビジネス導入をご検討の企業様は、以下のコーポレートサイトよりお気軽にお問い合わせください。
 
-* **コーポレートサイト (お問い合わせ)**: <a href="https://corp-4u.com/contact" target="_blank" rel="noopener noreferrer">https://corp-4u.com/contact</a>
-* **YouTube**: <a href="https://www.youtube.com/@google-school" target="_blank" rel="noopener noreferrer">こーすけ先生のGoogle塾</a>
+* **コーポレートサイト (お問い合わせ)**: [https://corp-4u.com/contact](https://corp-4u.com/contact)
+* **YouTube**: [こーすけ先生のGoogle塾](https://www.youtube.com/@google-school)
 
 ---
 
