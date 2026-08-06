@@ -1,0 +1,778 @@
+<!--
+ ====================================================================
+  Google Workspace Portal
+ 
+  Copyright (c) 2026 4U, Inc. All Rights Reserved.
+  Released under the MIT License.
+  https://corp-4u.com/
+ ====================================================================
+-->
+<!-- 新規申請およびルートカスタマイズ用のモーダル -->
+<div id="wf-apply-modal" class="hidden fixed inset-0 z-[60] flex items-center justify-center bg-gray-900 bg-opacity-50 backdrop-blur-sm p-4">
+  <div class="bg-white p-6 rounded-xl shadow-2xl w-full max-w-5xl flex flex-col max-h-[95vh] relative overflow-hidden">
+    
+    <!-- ダイアログ内部スピナー (ルート読み込み時用) -->
+    <div id="apply-inner-spinner" class="hidden absolute inset-0 bg-white/80 backdrop-blur-sm z-50 flex flex-col items-center justify-center">
+      <span class="material-symbols-outlined animate-spin text-5xl text-theme mb-3">progress_activity</span>
+      <span class="text-sm font-bold text-gray-600 tracking-wider" data-i18n="applyInnerLoading">ルート情報を読み込んでいます...</span>
+    </div>
+
+    <h3 class="text-lg font-bold mb-4 border-b pb-2 flex items-center shrink-0">
+      <span class="material-symbols-outlined mr-2 text-theme">post_add</span><span data-i18n="applyModalTitle">ワークフロー新規申請</span>
+    </h3>
+    
+    <div class="overflow-y-auto pr-2 flex-grow">
+      
+      <!-- ==================================== -->
+      <!-- ステップ1: 申請内容の入力 -->
+      <!-- ==================================== -->
+      <div id="apply-step-1">
+        <div class="mb-4">
+          <label class="block text-sm font-bold text-gray-700 mb-1" data-i18n="applyLblSubject">件名 (必須)</label>
+          <input type="text" id="apply-subject" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-theme" data-i18n-placeholder="applyPlaceholderSubject" placeholder="例: クラウドサービス利用の稟議">
+        </div>
+        <div class="mb-4">
+          <label class="block text-sm font-bold text-gray-700 mb-1" data-i18n="applyLblBody">詳細内容 (マークダウン対応)</label>
+          <textarea id="apply-body" rows="6" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-theme"></textarea>
+        </div>
+
+        <div class="mb-2">
+          <label class="block text-sm font-bold text-gray-700 mb-2 flex items-center">
+            <span class="material-symbols-outlined text-[18px] mr-1">attach_file</span><span data-i18n="applyLblFiles">添付ファイル</span>
+          </label>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+            
+            <!-- PCファイル選択領域 -->
+            <div class="bg-gray-50 p-3 rounded-lg border border-gray-200 flex flex-col justify-start items-start min-w-0">
+              <span class="text-xs font-bold text-gray-600 mb-2 flex items-center">
+                <span class="material-symbols-outlined text-[16px] mr-1">computer</span><span data-i18n="applyLblPcFiles">PCから選択 (合計20MBまで)</span>
+              </span>
+              <label class="bg-white border border-gray-300 text-gray-700 hover:bg-gray-100 font-bold py-1.5 px-3 rounded text-xs flex items-center shadow-sm cursor-pointer transition-colors mb-1">
+                <span class="material-symbols-outlined text-[16px] mr-1 text-gray-600">upload_file</span><span data-i18n="applyBtnAddFile">ファイルを追加</span>
+                <input type="file" id="apply-file" multiple class="hidden" onchange="handlePcFileSelect(event)"/>
+              </label>
+              <div id="selected-pc-files" class="flex flex-col gap-1.5 mt-1 w-full empty:hidden"></div>
+            </div>
+
+            <!-- Googleドライブファイル選択領域 -->
+            <div class="bg-gray-50 p-3 rounded-lg border border-gray-200 flex flex-col justify-start items-start min-w-0">
+              <span class="text-xs font-bold text-gray-600 mb-2 flex items-center">
+                <span class="material-symbols-outlined text-[16px] mr-1">cloud</span><span data-i18n="applyLblDriveFiles">Googleドライブから選択 (容量無制限)</span>
+              </span>
+              <button onclick="openDrivePicker()" class="bg-white border border-gray-300 text-gray-700 hover:bg-gray-100 font-bold py-1.5 px-3 rounded text-xs flex items-center shadow-sm transition-colors mb-1">
+                <span class="material-symbols-outlined text-[16px] mr-1 text-[#4285F4]">add_to_drive</span><span data-i18n="applyBtnOpenDrive">ドライブを開く</span>
+              </button>
+              <div id="selected-drive-files" class="flex flex-col gap-1.5 mt-1 w-full empty:hidden"></div>
+            </div>
+            
+          </div>
+        </div>
+      </div>
+
+      <!-- ==================================== -->
+      <!-- ステップ2: ルートの選択・編集 -->
+      <!-- ==================================== -->
+      <div id="apply-step-2" class="hidden">
+        <div class="mb-6 bg-blue-50 p-4 rounded-lg border border-blue-100">
+          <label class="block text-sm font-bold text-gray-700 mb-2 flex items-center"><span class="material-symbols-outlined mr-1 text-[18px]">alt_route</span><span data-i18n="applyLblRoute">申請ルートの選択・編集</span></label>
+          <select id="apply-route" onchange="loadApplyRouteSteps()" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-theme bg-white text-gray-800 font-bold mb-3 shadow-sm"></select>
+          
+          <div class="bg-white p-4 rounded border border-gray-200">
+            <div id="apply-steps-container" class="min-h-[50px] mb-2"></div>
+            <button onclick="addApplyStep()" class="text-sm font-bold text-theme hover:bg-theme/10 px-3 py-1.5 rounded transition-colors flex items-center"><span class="material-symbols-outlined text-[18px] mr-1">add_circle</span><span data-i18n="applyBtnAddStep">ステップを追加</span></button>
+          </div>
+
+          <div class="mt-4 pt-3 border-t border-blue-200">
+            <label class="flex items-center text-sm font-bold text-gray-700 cursor-pointer mb-2">
+              <input type="checkbox" id="apply-save-template-check" onchange="toggleTemplateSaveUI()" class="mr-2 h-4 w-4 text-theme focus:ring-theme border-gray-300 rounded">
+              <span data-i18n="applyCheckSaveTemplate">この経路設定を「新しいテンプレート」として保存する</span>
+            </label>
+            <div id="apply-save-template-ui" class="hidden flex flex-wrap gap-3 items-end bg-white p-3 rounded border border-gray-200">
+              <div class="flex-grow">
+                <span class="block text-xs font-bold text-gray-500 mb-1" data-i18n="applyLblTemplateName">テンプレート名</span>
+                <input type="text" id="apply-tpl-name" data-i18n-placeholder="applyPlaceholderTemplateName" placeholder="例: 営業部用稟議ルート" class="w-full text-sm border border-gray-300 rounded p-1.5 focus:outline-theme">
+              </div>
+              <div>
+                <span class="block text-xs font-bold text-gray-500 mb-1" data-i18n="applyLblTemplateScope">公開範囲</span>
+                <select id="apply-tpl-scope" class="w-full text-sm border border-gray-300 rounded p-1.5 focus:outline-theme"></select>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 隠しフィールド -->
+    <input type="hidden" id="apply-retention-type" value="PERIOD">
+    <input type="hidden" id="apply-retention-value" value="5">
+
+    <!-- フッター（ステップ1: 申請内容入力中） -->
+    <div id="apply-footer-1" class="flex justify-end gap-2 shrink-0 pt-4 border-t mt-2">
+      <button onclick="closeApplyModal()" class="px-6 py-2 border rounded-lg text-gray-600 hover:bg-gray-100 font-bold transition-colors" data-i18n="btnCancel">キャンセル</button>
+      <button onclick="nextApplyStep()" class="px-8 py-2 bg-theme text-white rounded-lg hover:opacity-90 font-bold shadow flex items-center transition-colors">
+        <span data-i18n="applyBtnNext">次へ</span><span class="material-symbols-outlined ml-1 text-[18px]">arrow_forward</span>
+      </button>
+    </div>
+
+    <!-- フッター（ステップ2: ルート設定中） -->
+    <div id="apply-footer-2" class="hidden gap-2 shrink-0 pt-4 border-t mt-2">
+      <button onclick="prevApplyStep()" class="px-6 py-2 border rounded-lg text-gray-600 hover:bg-gray-100 font-bold transition-colors flex items-center">
+        <span class="material-symbols-outlined mr-1 text-[18px]">arrow_back</span><span data-i18n="applyBtnBack">戻る</span>
+      </button>
+      <button onclick="submitApplyModal()" class="px-8 py-2 bg-theme text-white rounded-lg hover:opacity-90 font-bold shadow flex items-center ml-auto transition-colors">
+        <span class="material-symbols-outlined mr-1 text-[18px]">send</span><span data-i18n="applyBtnSubmit">申請する</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Google Driveファイル選択用モーダル -->
+<div id="drive-picker-modal" class="hidden fixed inset-0 z-[70] flex items-center justify-center bg-gray-900 bg-opacity-60 backdrop-blur-sm p-4">
+  <div class="bg-white rounded-xl shadow-2xl w-full max-w-3xl flex flex-col h-[80vh]">
+    <div class="p-4 border-b shrink-0 flex justify-between items-center bg-gray-50 rounded-t-xl">
+      <h3 class="text-lg font-bold text-gray-800 flex items-center"><span class="material-symbols-outlined mr-2 text-[#4285F4]">add_to_drive</span><span data-i18n="drivePickerTitle">ファイルを選択</span></h3>
+      <button onclick="closeDrivePicker()" class="text-gray-400 hover:bg-gray-200 p-1 rounded-full"><span class="material-symbols-outlined">close</span></button>
+    </div>
+    <div class="flex border-b text-sm shrink-0 bg-white">
+      <button onclick="loadPickerData('recent')" id="picker-tab-recent" class="flex-1 py-2 text-center border-b-2 font-bold transition-colors picker-tab" data-i18n="drivePickerTabRecent">最近</button>
+      <button onclick="loadPickerData('mydrive')" id="picker-tab-mydrive" class="flex-1 py-2 text-center border-b-2 font-bold transition-colors picker-tab" data-i18n="drivePickerTabMyDrive">マイドライブ</button>
+      <button onclick="loadPickerData('shared')" id="picker-tab-shared" class="flex-1 py-2 text-center border-b-2 font-bold transition-colors picker-tab" data-i18n="drivePickerTabShared">共有ドライブ</button>
+    </div>
+    <div id="picker-nav" class="bg-gray-50 px-3 py-2 text-xs text-gray-600 flex items-center border-b shrink-0 hidden"></div>
+    <div id="picker-list" class="flex-grow overflow-y-auto p-0 bg-white relative"></div>
+    <div class="p-4 border-t shrink-0 bg-gray-50 flex justify-between items-center rounded-b-xl">
+      <div class="text-sm font-bold text-gray-600"><span id="picker-selected-count" class="text-theme">0</span><span data-i18n="drivePickerSelectedCountSuffix"> 件選択中</span></div>
+      <button onclick="confirmDrivePicker()" class="bg-theme text-white px-6 py-2 rounded-lg font-bold hover:opacity-90 shadow-sm" data-i18n="btnDecide">決定</button>
+    </div>
+  </div>
+</div>
+
+<datalist id="apply-group-emails-list"></datalist>
+<datalist id="apply-user-emails-list"></datalist>
+
+<script>
+  /** @type {Object|null} EasyMDEエディタのインスタンス */
+  let applyEditor = null;
+  /** @type {Array<Object>} 確定されたGoogle Driveのファイルデータ配列 */
+  let selectedDriveFilesData = [];
+  /** @type {Array<File>} ローカルPCから選択されたファイルオブジェクトの配列 */
+  let pcFilesArray = [];
+  /** @type {Array<Object>} ピッカーモーダル内で一時的に選択されているファイルデータ配列 */
+  let tempPickerSelection = [];
+  /** @type {string} 現在表示中のピッカーのタブ種別 */
+  let currentPickerTab = 'recent';
+  /** @type {Array<Object>} 取得済みの利用可能なルートデータの配列 */
+  let availableRoutesData = []; 
+  /** @type {Object|null} Sortable.jsのインスタンス */
+  let applyStepsSortable = null;
+
+  /**
+   * 申請モーダルを開き、初期化処理を行う
+   */
+  function openApplyModal() {
+    document.getElementById("wf-apply-modal").classList.remove("hidden");
+    if (!applyEditor) {
+      applyEditor = new EasyMDE({ 
+        element: document.getElementById("apply-body"), 
+        spellChecker: false, 
+        status: false, 
+        minHeight: "150px" 
+      });
+    }
+    
+    document.getElementById("apply-step-1").classList.remove("hidden");
+    document.getElementById("apply-footer-1").classList.remove("hidden");
+    document.getElementById("apply-step-2").classList.add("hidden");
+    document.getElementById("apply-footer-2").classList.add("hidden");
+    document.getElementById("apply-footer-2").classList.remove("flex");
+
+    document.getElementById("apply-subject").value = "";
+    applyEditor.value("");
+    
+    document.getElementById("apply-file").value = "";
+    pcFilesArray = [];
+    renderPcFiles();
+    selectedDriveFilesData = [];
+    renderSelectedDriveFiles();
+    
+    document.getElementById("apply-save-template-check").checked = false;
+    toggleTemplateSaveUI();
+    document.getElementById("apply-route").innerHTML = '<option value="">' + escapeHTML(t('applyOptSelectTemplate')) + '</option>';
+    document.getElementById("apply-steps-container").innerHTML = '';
+    
+    let scopeOpts = '<option value="PERSONAL">' + escapeHTML(t('applyScopePersonal')) + '</option>';
+    let dlHtml = '';
+    userGroups.forEach(g => {
+      scopeOpts += '<option value="' + escapeHTML(g) + '">' + escapeHTML(t('applyScopeGroupPrefix')) + escapeHTML(g) + '</option>';
+      dlHtml += '<option value="' + escapeHTML(g) + '">';
+    });
+    document.getElementById("apply-tpl-scope").innerHTML = scopeOpts;
+    document.getElementById("apply-group-emails-list").innerHTML = dlHtml;
+  }
+
+  /**
+   * 申請モーダルを閉じる
+   */
+  function closeApplyModal() { 
+    document.getElementById("wf-apply-modal").classList.add("hidden"); 
+  }
+
+  /**
+   * 担当者の種類（個人/グループ）が変更された際、サジェストリストを切り替える
+   * @param {HTMLElement} selectEl - 変更されたセレクト要素
+   */
+  function toggleApplyAssigneeList(selectEl) {
+    const type = selectEl.value;
+    const inputEl = selectEl.closest('.apply-step-item').querySelector('.apply-step-assignee');
+    if (type === 'GROUP') {
+      inputEl.setAttribute('list', 'apply-group-emails-list');
+      inputEl.placeholder = t('wfPlaceholderGroupInput') + t('wfPlaceholderSuffix');
+    } else {
+      inputEl.setAttribute('list', 'apply-user-emails-list');
+      inputEl.placeholder = t('wfPlaceholderUserInput') + t('wfPlaceholderSuffix');
+    }
+  }
+
+  /**
+   * 申請の次のステップ（ルート選択）へ進む
+   */
+  function nextApplyStep() {
+    const subject = document.getElementById("apply-subject").value.trim();
+    const body = applyEditor.value().trim();
+    
+    if (!subject) return showCustomAlert(t('applyErrSubjectEmpty'), true);
+    if (!body) return showCustomAlert(t('applyErrBodyEmpty'), true);
+
+    document.getElementById("apply-step-1").classList.add("hidden");
+    document.getElementById("apply-footer-1").classList.add("hidden");
+    document.getElementById("apply-step-2").classList.remove("hidden");
+    document.getElementById("apply-footer-2").classList.remove("hidden");
+    document.getElementById("apply-footer-2").classList.add("flex"); 
+
+    /**
+     * バックグラウンドで最新のルート情報を取得し、差分があれば画面を静かに更新する
+     */
+    const fetchLatestRoutes = () => {
+      google.script.run.withSuccessHandler(routes => {
+        const oldStr = JSON.stringify(window.availableRoutesCache || []);
+        const newStr = JSON.stringify(routes);
+        if (oldStr !== newStr) {
+          window.availableRoutesCache = routes;
+          availableRoutesData = routes;
+          const select = document.getElementById("apply-route");
+          const currentVal = select.value;
+          let html = '<option value="">' + escapeHTML(t('applyOptSelectTemplate')) + '</option><option value="NEW">' + escapeHTML(t('applyOptNoTemplate')) + '</option>';
+          routes.forEach(r => { html += '<option value="' + escapeHTML(r.id) + '">' + escapeHTML(r.name) + '</option>'; });
+          select.innerHTML = html;
+          if (currentVal) {
+             select.value = currentVal;
+             loadApplyRouteSteps();
+          }
+        }
+      }).getAvailableRoutes();
+    };
+
+    if (window.availableRoutesCache && window.allGroupMembersCache && window.allGroupMembersCache.length > 0) {
+      availableRoutesData = window.availableRoutesCache;
+      
+      let groupDlHtml = ''; 
+      let userDlHtml = '';
+      userGroups.forEach(g => { groupDlHtml += '<option value="' + escapeHTML(g) + '">'; });
+      window.allGroupMembersCache.forEach(m => { userDlHtml += '<option value="' + escapeHTML(m) + '">'; });
+      document.getElementById("apply-group-emails-list").innerHTML = groupDlHtml;
+      document.getElementById("apply-user-emails-list").innerHTML = userDlHtml;
+
+      const select = document.getElementById("apply-route");
+      let html = '<option value="">' + escapeHTML(t('applyOptSelectTemplate')) + '</option><option value="NEW">' + escapeHTML(t('applyOptNoTemplate')) + '</option>';
+      availableRoutesData.forEach(r => { html += '<option value="' + escapeHTML(r.id) + '">' + escapeHTML(r.name) + '</option>'; });
+      select.innerHTML = html;
+
+      fetchLatestRoutes();
+    } else {
+      document.getElementById("apply-inner-spinner").classList.remove("hidden");
+      let routesLoaded = false; 
+      let membersLoaded = false;
+
+      google.script.run.withSuccessHandler(routes => {
+        availableRoutesData = routes;
+        window.availableRoutesCache = routes;
+        routesLoaded = true; 
+        checkApplyReady();
+      }).withFailureHandler(e => {
+        document.getElementById("apply-inner-spinner").classList.add("hidden");
+        showCustomAlert(t('applyErrFetchRoutes'), true);
+      }).getAvailableRoutes();
+
+      window.allGroupMembersCache = window.allGroupMembersCache || [];
+      if (window.allGroupMembersCache.length > 0) {
+        membersLoaded = true; 
+        checkApplyReady();
+      } else {
+        google.script.run.withSuccessHandler(members => {
+          window.allGroupMembersCache = members;
+          membersLoaded = true; 
+          checkApplyReady();
+        }).withFailureHandler(e => {
+          window.allGroupMembersCache = [currentConfig.userEmail || ''];
+          membersLoaded = true; 
+          checkApplyReady();
+        }).getAllMyGroupMembers();
+      }
+
+      /**
+       * ルート情報とメンバー情報の両方が読み込まれたか確認し、描画を実行する
+       */
+      function checkApplyReady() {
+        if (routesLoaded && membersLoaded) {
+          let groupDlHtml = ''; 
+          let userDlHtml = '';
+          userGroups.forEach(g => { groupDlHtml += '<option value="' + escapeHTML(g) + '">'; });
+          window.allGroupMembersCache.forEach(m => { userDlHtml += '<option value="' + escapeHTML(m) + '">'; });
+          document.getElementById("apply-group-emails-list").innerHTML = groupDlHtml;
+          document.getElementById("apply-user-emails-list").innerHTML = userDlHtml;
+
+          const select = document.getElementById("apply-route");
+          let html = '<option value="">' + escapeHTML(t('applyOptSelectTemplate')) + '</option><option value="NEW">' + escapeHTML(t('applyOptNoTemplate')) + '</option>';
+          availableRoutesData.forEach(r => { html += '<option value="' + escapeHTML(r.id) + '">' + escapeHTML(r.name) + '</option>'; });
+          select.innerHTML = html;
+          document.getElementById("apply-inner-spinner").classList.add("hidden");
+        }
+      }
+    }
+  }
+
+  /**
+   * 申請の前のステップ（内容入力）へ戻る
+   */
+  function prevApplyStep() {
+    document.getElementById("apply-step-2").classList.add("hidden");
+    document.getElementById("apply-footer-2").classList.add("hidden");
+    document.getElementById("apply-footer-2").classList.remove("flex");
+    
+    document.getElementById("apply-step-1").classList.remove("hidden");
+    document.getElementById("apply-footer-1").classList.remove("hidden");
+    
+    setTimeout(() => applyEditor.codemirror.refresh(), 50);
+  }
+
+  /**
+   * 選択されたルートのステップ設定を読み込み、展開する
+   */
+  function loadApplyRouteSteps() {
+    const routeId = document.getElementById("apply-route").value;
+    let targetSteps = [];
+    
+    if (routeId === "NEW") {
+      targetSteps = [{ actionType: 'APPROVE', assignee: '' }];
+      document.getElementById("apply-retention-type").value = "PERIOD";
+      document.getElementById("apply-retention-value").value = "5";
+    } else if (routeId) {
+      const route = availableRoutesData.find(r => r.id === routeId);
+      if (route) {
+        targetSteps = JSON.parse(JSON.stringify(route.steps));
+        document.getElementById("apply-retention-type").value = route.retentionType;
+        document.getElementById("apply-retention-value").value = route.retentionValue;
+      }
+    }
+    renderApplySteps(targetSteps);
+  }
+
+  /**
+   * 申請ステップのUIを再描画する
+   * @param {Array<Object>} steps - 描画対象のステップ配列
+   */
+  function renderApplySteps(steps) {
+    const container = document.getElementById("apply-steps-container");
+    if (applyStepsSortable) applyStepsSortable.destroy();
+
+    let html = '';
+
+    steps.forEach((step, index) => {
+      const isGroup = userGroups.includes(step.assignee);
+      
+      html += `
+        <div class="flex flex-col sm:flex-row sm:items-center gap-2 mb-2 bg-gray-50 p-3 sm:p-2 rounded border border-gray-200 apply-step-item">
+          
+          <div class="flex items-center justify-between sm:hidden mb-1 border-b border-gray-200 pb-2">
+            <span class="material-symbols-outlined text-gray-400 cursor-grab step-drag-handle">drag_indicator</span>
+            <button onclick="this.closest('.apply-step-item').remove()" class="text-gray-400 hover:text-red-500 bg-white border border-gray-200 rounded p-1 shadow-sm" title="削除">
+              <span class="material-symbols-outlined text-[18px]">delete</span>
+            </button>
+          </div>
+
+          <span class="hidden sm:block material-symbols-outlined text-gray-300 cursor-grab step-drag-handle shrink-0 ml-1">drag_indicator</span>
+
+          <div class="flex items-center gap-2 w-full sm:w-auto shrink-0">
+            <select class="apply-step-action flex-1 sm:flex-none sm:w-24 border border-gray-300 rounded p-1.5 text-sm font-bold text-gray-700 bg-white">
+              <option value="APPROVE" ${step.actionType === 'APPROVE' ? 'selected' : ''}>${escapeHTML(t('wfActionApprove'))}</option>
+              <option value="VIEW" ${step.actionType === 'VIEW' ? 'selected' : ''}>${escapeHTML(t('wfActionView'))}</option>
+            </select>
+            
+            <select class="apply-step-assignee-type flex-1 sm:flex-none sm:w-24 border border-gray-300 rounded p-1.5 text-sm font-bold text-blue-700 focus:outline-theme bg-blue-50" onchange="toggleApplyAssigneeList(this)">
+               <option value="USER" ${!isGroup ? 'selected' : ''}>${escapeHTML(t('wfAssigneePersonal'))}</option>
+               <option value="GROUP" ${isGroup ? 'selected' : ''}>${escapeHTML(t('wfAssigneeGroup'))}</option>
+            </select>
+          </div>
+
+          <div class="flex-grow flex items-center relative w-full sm:w-auto min-w-[120px]">
+             <span class="material-symbols-outlined absolute left-2 text-gray-400 text-[18px] hidden sm:block">account_circle</span>
+             <input type="text" list="${isGroup ? 'apply-group-emails-list' : 'apply-user-emails-list'}" autocomplete="off" class="apply-step-assignee w-full border border-gray-300 rounded p-1.5 sm:pl-8 text-sm bg-white focus:outline-theme" placeholder="${isGroup ? escapeHTML(t('wfPlaceholderGroupInput')) : escapeHTML(t('wfPlaceholderUserInput'))}${escapeHTML(t('wfPlaceholderSuffix'))}" value="${escapeHTML(step.assignee)}">
+          </div>
+          
+          <button onclick="this.closest('.apply-step-item').remove()" class="hidden sm:block text-gray-400 hover:text-red-500 p-1 shrink-0 ml-1" title="削除">
+            <span class="material-symbols-outlined text-[20px]">delete</span>
+          </button>
+        </div>
+      `;
+    });
+
+    container.innerHTML = html;
+    applyStepsSortable = new Sortable(container, { 
+      animation: 150, 
+      handle: '.step-drag-handle', 
+      ghostClass: 'sortable-ghost' 
+    });
+  }
+
+  /**
+   * 新しい申請ステップを末尾に追加する
+   */
+  function addApplyStep() {
+    const container = document.getElementById("apply-steps-container");
+    container.insertAdjacentHTML('beforeend', `
+      <div class="flex flex-col sm:flex-row sm:items-center gap-2 mb-2 bg-gray-50 p-3 sm:p-2 rounded border border-gray-200 apply-step-item">
+        <div class="flex items-center justify-between sm:hidden mb-1 border-b border-gray-200 pb-2">
+          <span class="material-symbols-outlined text-gray-400 cursor-grab step-drag-handle">drag_indicator</span>
+          <button onclick="this.closest('.apply-step-item').remove()" class="text-gray-400 hover:text-red-500 bg-white border border-gray-200 rounded p-1 shadow-sm" title="削除">
+            <span class="material-symbols-outlined text-[18px]">delete</span>
+          </button>
+        </div>
+        <span class="hidden sm:block material-symbols-outlined text-gray-300 cursor-grab step-drag-handle shrink-0 ml-1">drag_indicator</span>
+        
+        <div class="flex items-center gap-2 w-full sm:w-auto shrink-0">
+          <select class="apply-step-action flex-1 sm:flex-none sm:w-24 border border-gray-300 rounded p-1.5 text-sm font-bold text-gray-700 bg-white">
+             <option value="APPROVE">${escapeHTML(t('wfActionApprove'))}</option>
+             <option value="VIEW">${escapeHTML(t('wfActionView'))}</option>
+          </select>
+          <select class="apply-step-assignee-type flex-1 sm:flex-none sm:w-24 border border-gray-300 rounded p-1.5 text-sm font-bold text-blue-700 focus:outline-theme bg-blue-50" onchange="toggleApplyAssigneeList(this)">
+             <option value="USER" selected>${escapeHTML(t('wfAssigneePersonal'))}</option>
+             <option value="GROUP">${escapeHTML(t('wfAssigneeGroup'))}</option>
+          </select>
+        </div>
+
+        <div class="flex-grow flex items-center relative w-full sm:w-auto min-w-[120px]">
+           <span class="material-symbols-outlined absolute left-2 text-gray-400 text-[18px] hidden sm:block">account_circle</span>
+           <input type="text" list="apply-user-emails-list" autocomplete="off" class="apply-step-assignee w-full border border-gray-300 rounded p-1.5 sm:pl-8 text-sm bg-white focus:outline-theme" placeholder="${escapeHTML(t('wfPlaceholderUserInput'))}${escapeHTML(t('wfPlaceholderSuffix'))}" value="">
+        </div>
+        <button onclick="this.closest('.apply-step-item').remove()" class="hidden sm:block text-gray-400 hover:text-red-500 p-1 shrink-0 ml-1" title="削除">
+          <span class="material-symbols-outlined text-[20px]">delete</span>
+        </button>
+      </div>
+    `);
+  }
+
+  /**
+   * テンプレート保存用UIの表示・非表示を切り替える
+   */
+  function toggleTemplateSaveUI() {
+    const isChecked = document.getElementById("apply-save-template-check").checked;
+    const ui = document.getElementById("apply-save-template-ui");
+    if (isChecked) {
+      ui.classList.remove("hidden");
+    } else {
+      ui.classList.add("hidden");
+    }
+  }
+
+  /**
+   * Google Driveファイルピッカーを開く
+   */
+  function openDrivePicker() {
+    tempPickerSelection = [...selectedDriveFilesData];
+    document.getElementById("drive-picker-modal").classList.remove("hidden");
+    loadPickerData('recent');
+  }
+
+  /**
+   * Google Driveファイルピッカーを閉じる
+   */
+  function closeDrivePicker() { 
+    document.getElementById("drive-picker-modal").classList.add("hidden"); 
+  }
+
+  /**
+   * ピッカー内にGoogle Driveのファイル一覧を読み込む
+   * セキュリティ対策のため、引数はURIエンコードされたものを受け取る
+   * @param {string} encodedTab - タブの種類（エンコード済）
+   * @param {string|null} encodedFolderId - フォルダID（エンコード済）
+   */
+  function loadPickerData(encodedTab, encodedFolderId = null) {
+    const tab = decodeURIComponent(encodedTab);
+    const folderId = encodedFolderId ? decodeURIComponent(encodedFolderId) : null;
+    
+    currentPickerTab = tab;
+    
+    document.querySelectorAll('.picker-tab').forEach(el => { 
+      el.classList.remove('border-theme', 'text-theme'); 
+      el.classList.add('border-transparent', 'text-gray-500'); 
+    });
+    
+    const activeTabEl = document.getElementById(`picker-tab-${tab}`);
+    if(activeTabEl) {
+      activeTabEl.classList.add('border-theme', 'text-theme');
+      activeTabEl.classList.remove('border-transparent', 'text-gray-500');
+    }
+    
+    const listContainer = document.getElementById('picker-list');
+    const navContainer = document.getElementById('picker-nav');
+    
+    listContainer.innerHTML = '<div class="p-10 flex flex-col items-center justify-center text-gray-400 text-sm"><span class="material-symbols-outlined animate-spin mb-2 text-3xl">progress_activity</span>' + escapeHTML(t('loading')) + '</div>';
+    
+    google.script.run
+      .withSuccessHandler(data => {
+        if (data.parentId !== undefined && data.parentId !== null) {
+          navContainer.classList.remove("hidden");
+          const safeTab = encodeURIComponent(tab).replace(/'/g, "%27");
+          const safeParentId = encodeURIComponent(data.parentId).replace(/'/g, "%27");
+          const backAction = data.parentId === "ROOT_SHARED" 
+            ? `loadPickerData('shared', null)` 
+            : `loadPickerData('${safeTab}', '${safeParentId}')`;
+            
+          navContainer.innerHTML = `<button onclick="${backAction}" class="hover:bg-gray-200 p-1 rounded mr-2 flex items-center"><span class="material-symbols-outlined text-[16px]">arrow_upward</span></button><span class="font-bold truncate">${escapeHTML(data.currentName)}</span>`;
+        } else { 
+          navContainer.classList.add("hidden"); 
+        }
+        
+        if (!data.items || data.items.length === 0) {
+          listContainer.innerHTML = '<div class="p-10 text-gray-400 text-center flex flex-col items-center"><span class="material-symbols-outlined text-4xl mb-2 text-gray-300">folder_off</span>' + escapeHTML(t('noItems')) + '</div>'; 
+          return;
+        }
+        
+        let html = '<ul class="divide-y divide-gray-100">';
+        data.items.forEach(file => {
+          const ui = getFileIconInfo(file.mimeType, file.type);
+          const isSelected = tempPickerSelection.some(f => f.id === file.id);
+          
+          const safeId = encodeURIComponent(file.id).replace(/'/g, "%27");
+          const safeName = encodeURIComponent(file.name).replace(/'/g, "%27");
+          const safeTab = encodeURIComponent(tab).replace(/'/g, "%27");
+          
+          if (file.type === "folder" || file.type === "drive") {
+            html += `<li onclick="loadPickerData('${safeTab}', '${safeId}')" class="cursor-pointer p-3 hover:bg-gray-50 transition-colors flex items-center group"><span class="material-symbols-outlined ${ui.color} mr-3 shrink-0">${ui.icon}</span><div class="truncate flex-grow text-sm text-gray-700 font-bold group-hover:text-theme">${escapeHTML(file.name)}</div><span class="material-symbols-outlined text-gray-300 group-hover:text-theme">chevron_right</span></li>`;
+          } else {
+            html += `<li onclick="togglePickerFile('${safeId}', '${safeName}', '${ui.icon}')" class="cursor-pointer p-3 hover:bg-blue-50 transition-colors flex items-center group"><input type="checkbox" id="chk-${escapeHTML(file.id)}" class="pointer-events-none mr-3 h-4 w-4 rounded text-theme focus:ring-theme border-gray-300" ${isSelected ? 'checked' : ''}><span class="material-symbols-outlined ${ui.color} mr-2 shrink-0 text-[20px]">${ui.icon}</span><div class="truncate flex-grow text-sm text-gray-700 group-hover:text-theme select-none">${escapeHTML(file.name)}</div>${file.date ? `<div class="text-xs text-gray-400 shrink-0 ml-2">${file.date}</div>` : ""}</li>`;
+          }
+        });
+        html += "</ul>";
+        listContainer.innerHTML = html;
+        updatePickerCount();
+      })
+      .getDriveItems(tab, folderId);
+  }
+
+  /**
+   * ピッカー内でファイルが選択・解除された際の処理
+   * @param {string} encodedId - ファイルID（エンコード済）
+   * @param {string} encodedName - ファイル名（エンコード済）
+   * @param {string} icon - アイコン名
+   */
+  function togglePickerFile(encodedId, encodedName, icon) {
+    const id = decodeURIComponent(encodedId);
+    const name = decodeURIComponent(encodedName);
+    
+    const chk = document.getElementById(`chk-${id}`);
+    const idx = tempPickerSelection.findIndex(f => f.id === id);
+    
+    if (idx >= 0) { 
+      tempPickerSelection.splice(idx, 1); 
+      if (chk) chk.checked = false; 
+    } else { 
+      tempPickerSelection.push({ id, name, icon }); 
+      if (chk) chk.checked = true; 
+    }
+    updatePickerCount();
+  }
+
+  /**
+   * 選択中のファイル件数を更新する
+   */
+  function updatePickerCount() { 
+    document.getElementById('picker-selected-count').innerText = tempPickerSelection.length; 
+  }
+
+  /**
+   * ピッカーでの選択を確定し、申請データに反映する
+   */
+  function confirmDrivePicker() { 
+    selectedDriveFilesData = [...tempPickerSelection]; 
+    renderSelectedDriveFiles(); 
+    closeDrivePicker(); 
+  }
+
+  /**
+   * 選択済みのGoogle Driveファイルをリストから削除する
+   * @param {string} encodedId - ファイルID（エンコード済）
+   */
+  function removeDriveFile(encodedId) { 
+    const id = decodeURIComponent(encodedId);
+    selectedDriveFilesData = selectedDriveFilesData.filter(f => f.id !== id); 
+    renderSelectedDriveFiles(); 
+  }
+  
+  /**
+   * 選択されたGoogle Driveファイルのリストを画面に描画する
+   */
+  function renderSelectedDriveFiles() {
+    const container = document.getElementById('selected-drive-files');
+    let html = '';
+    selectedDriveFilesData.forEach(f => {
+      const safeId = encodeURIComponent(f.id).replace(/'/g, "%27");
+      html += `
+        <div class="flex items-center justify-between bg-blue-50 border border-blue-200 shadow-sm rounded px-2 py-1.5 w-full">
+           <div class="flex items-center min-w-0 overflow-hidden">
+             <span class="material-symbols-outlined text-[16px] text-[#4285F4] mr-1.5 shrink-0">${escapeHTML(f.icon)}</span>
+             <span class="text-xs font-bold text-gray-700 truncate">${escapeHTML(f.name)}</span>
+           </div>
+           <button onclick="removeDriveFile('${safeId}')" class="ml-2 text-blue-300 hover:text-red-500 shrink-0 flex items-center transition-colors">
+             <span class="material-symbols-outlined text-[16px]">close</span>
+           </button>
+        </div>`;
+    });
+    container.innerHTML = html;
+  }
+
+  /**
+   * PCからファイルが選択された際の処理
+   * @param {Event} event - changeイベントオブジェクト
+   */
+  function handlePcFileSelect(event) {
+    const files = Array.from(event.target.files);
+    pcFilesArray = pcFilesArray.concat(files);
+    updateFileInput();
+    renderPcFiles();
+  }
+
+  /**
+   * 選択済みのPCファイルをリストから削除する
+   * @param {number} index - 削除対象ファイルの配列インデックス
+   */
+  function removePcFile(index) {
+    pcFilesArray.splice(index, 1);
+    updateFileInput();
+    renderPcFiles();
+  }
+
+  /**
+   * 選択された配列の情報を input[type="file"] 要素自体に上書き同期させる
+   */
+  function updateFileInput() {
+    const dt = new DataTransfer();
+    pcFilesArray.forEach(f => dt.items.add(f));
+    document.getElementById('apply-file').files = dt.files;
+  }
+
+  /**
+   * 選択されたPCファイルのリストを画面に描画する
+   */
+  function renderPcFiles() {
+    const container = document.getElementById('selected-pc-files');
+    let html = '';
+    pcFilesArray.forEach((f, index) => {
+      const sizeStr = f.size >= 1048576 ? (f.size / 1048576).toFixed(1) + ' MB' : (f.size / 1024).toFixed(1) + ' KB';
+      html += `
+        <div class="flex items-center justify-between bg-white border border-gray-200 shadow-sm rounded px-2 py-1.5 w-full">
+           <div class="flex items-center min-w-0 overflow-hidden">
+             <span class="material-symbols-outlined text-[16px] text-gray-400 mr-1.5 shrink-0">draft</span>
+             <span class="text-xs font-bold text-gray-700 truncate">${escapeHTML(f.name)}</span>
+             <span class="text-[10px] text-gray-400 ml-2 shrink-0">(${sizeStr})</span>
+           </div>
+           <button onclick="removePcFile(${index})" class="ml-2 text-gray-400 hover:text-red-500 shrink-0 flex items-center transition-colors">
+             <span class="material-symbols-outlined text-[16px]">close</span>
+           </button>
+        </div>`;
+    });
+    container.innerHTML = html;
+  }
+
+  /**
+   * 申請データを収集し、バックエンドに送信する
+   */
+  async function submitApplyModal() {
+    const routeId = document.getElementById("apply-route").value;
+    const subject = document.getElementById("apply-subject").value.trim();
+    const body = applyEditor.value().trim();
+    
+    if (!subject) return showCustomAlert(t('applyErrSubjectEmpty'), true);
+    if (!body) return showCustomAlert(t('applyErrBodyEmpty'), true);
+
+    const steps = [];
+    const stepItems = document.querySelectorAll(".apply-step-item");
+    stepItems.forEach(item => {
+      steps.push({
+        actionType: item.querySelector(".apply-step-action").value,
+        assignee: item.querySelector(".apply-step-assignee").value.trim()
+      });
+    });
+
+    if (steps.length === 0) return showCustomAlert(t('applyErrNoSteps'), true);
+    for (let s of steps) {
+      if (!s.assignee) return showCustomAlert(t('applyErrNoAssignee'), true);
+    }
+
+    const isSaveTemplate = document.getElementById("apply-save-template-check").checked;
+    let templateParams = null;
+    if (isSaveTemplate) {
+      const tName = document.getElementById("apply-tpl-name").value.trim();
+      if (!tName) return showCustomAlert(t('applyErrTemplateNameEmpty'), true);
+      templateParams = { name: tName, scope: document.getElementById("apply-tpl-scope").value };
+    }
+
+    let attachments = [];
+    try { 
+      attachments = await getBase64Files("apply-file"); 
+    } catch(e) { 
+      return showCustomAlert(e.message, true); 
+    }
+    
+    const payload = {
+      routeId: routeId === 'NEW' ? null : routeId,
+      subject: subject,
+      body: body,
+      steps: steps,
+      retentionType: document.getElementById("apply-retention-type").value,
+      retentionValue: document.getElementById("apply-retention-value").value,
+      saveTemplate: isSaveTemplate,
+      templateParams: templateParams,
+      attachments: attachments,
+      driveFileIds: selectedDriveFilesData.map(f => f.id)
+    };
+
+    showSpinner(t('applyProcessing'));
+    google.script.run
+      .withSuccessHandler(() => {
+        hideSpinner();
+        closeApplyModal();
+        showCustomAlert(t('applySuccess'));
+        
+        if (isSaveTemplate) {
+           window.availableRoutesCache = null;
+           window.wfRoutesCache = null;
+        }
+
+        // ポータル上のワークフローウィジェットを検索して部分更新する
+        if (typeof currentConfig !== 'undefined' && currentConfig && currentConfig.layout) {
+          currentConfig.layout.forEach(widget => {
+            if (widget.type === 'workflow' && typeof refreshWidget === 'function') {
+              refreshWidget(widget.id);
+            }
+          });
+        }
+      })
+      .withFailureHandler(e => {
+        hideSpinner();
+        const errorMsg = (e && e.message) ? e.message : String(e);
+        showCustomAlert(t('applyFailed') + errorMsg, true);
+      })
+      .submitWorkflowApplication(payload); 
+  }
+</script>

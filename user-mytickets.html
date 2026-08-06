@@ -1,0 +1,273 @@
+<!--
+ ====================================================================
+  Google Workspace Portal
+ 
+  Copyright (c) 2026 4U, Inc. All Rights Reserved.
+  Released under the MIT License.
+  https://corp-4u.com/
+ ====================================================================
+-->
+<!-- 申請履歴（マイチケット） モーダル -->
+<div id="wf-mytickets-modal" class="hidden fixed inset-0 z-[60] flex items-center justify-center bg-gray-900 bg-opacity-60 backdrop-blur-sm p-4">
+  <div class="bg-white rounded-xl shadow-2xl w-full max-w-4xl flex flex-col h-[85vh]">
+    
+    <!-- モーダルヘッダー -->
+    <div class="p-5 border-b shrink-0 flex justify-between items-center bg-gray-50 rounded-t-xl">
+      <h3 class="text-lg font-bold text-gray-800 flex items-center">
+        <span class="material-symbols-outlined mr-2 text-theme">history</span>
+        <span data-i18n="myTicketsTitle">申請履歴 (マイチケット)</span>
+      </h3>
+      <button onclick="closeMyTicketsModal()" class="text-gray-400 hover:bg-gray-200 p-1 rounded-full transition-colors">
+        <span class="material-symbols-outlined">close</span>
+      </button>
+    </div>
+
+    <!-- タブ切り替えUI -->
+    <div class="flex border-b text-sm shrink-0 bg-white px-4 pt-2">
+      <button id="tab-active-tickets" onclick="switchMyTicketsTab('active')" class="px-6 py-2 text-center border-b-2 border-theme text-theme font-bold transition-colors" data-i18n="myTicketsTabActive">現在の申請</button>
+      <button id="tab-archive-tickets" onclick="switchMyTicketsTab('archive')" class="px-6 py-2 text-center border-b-2 border-transparent text-gray-500 hover:bg-gray-50 hover:text-gray-700 transition-colors" data-i18n="myTicketsTabArchive">過去ログを検索</button>
+    </div>
+    
+    <!-- 検索バー（現在アクティブなチケット用） -->
+    <div id="active-search-container" class="p-4 border-b shrink-0 bg-white">
+      <div class="relative">
+        <span class="material-symbols-outlined absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400">search</span>
+        <input type="text" id="mytickets-search" data-i18n-placeholder="myTicketsSearchPlaceholder" placeholder="件名やステータスで検索..." oninput="debounceFilterMyTickets()" class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-theme bg-gray-50 focus:bg-white transition-colors">
+      </div>
+    </div>
+
+    <!-- 検索バー（過去アーカイブ用） -->
+    <div id="archive-search-container" class="hidden p-4 border-b shrink-0 bg-gray-50 border-gray-200">
+      <div class="flex flex-col sm:flex-row gap-3">
+        <div class="flex-1">
+          <label class="block text-[11px] font-bold text-gray-500 mb-1" data-i18n="myTicketsLblSubject">件名 (部分一致)</label>
+          <input type="text" id="archive-search-query" class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-theme bg-white" data-i18n-placeholder="myTicketsPlaceholderSubject" placeholder="例: 購入申請">
+        </div>
+        <div class="flex gap-2 items-center flex-1">
+          <div class="w-full">
+             <label class="block text-[11px] font-bold text-gray-500 mb-1" data-i18n="myTicketsLblFrom">申請日 (From)</label>
+             <input type="date" id="archive-search-from" class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-theme bg-white">
+          </div>
+          <span class="pt-5 text-gray-400">〜</span>
+          <div class="w-full">
+             <label class="block text-[11px] font-bold text-gray-500 mb-1" data-i18n="myTicketsLblTo">申請日 (To)</label>
+             <input type="date" id="archive-search-to" class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-theme bg-white">
+          </div>
+        </div>
+        <div class="flex items-end shrink-0">
+          <button onclick="executeArchiveSearch()" class="bg-gray-800 text-white font-bold py-1.5 px-5 rounded shadow hover:bg-gray-700 transition-colors text-sm h-[34px] flex items-center">
+            <span class="material-symbols-outlined text-[18px] mr-1">search</span><span data-i18n="myTicketsBtnSearch">検索</span>
+          </button>
+        </div>
+      </div>
+    </div>
+    
+    <!-- リスト表示エリア -->
+    <div id="mytickets-list" class="flex-grow overflow-y-auto p-0 bg-white relative">
+      <!-- JavaScriptでリストが描画されます -->
+    </div>
+    
+  </div>
+</div>
+
+<script>
+  /**
+   * @type {Array<Object>}
+   * 取得したすべてのマイチケットデータを保持する配列
+   */
+  let allMyTickets = [];
+
+  /**
+   * @type {string}
+   * 現在選択されているタブ状態 ('active' または 'archive') を管理
+   */
+  let currentMyTicketsTab = 'active';
+
+  /**
+   * 申請履歴（マイチケット）モーダルを開き、初期化とデータ取得を実行する
+   */
+  function openMyTicketsModal() {
+    document.getElementById("wf-mytickets-modal").classList.remove("hidden");
+    const container = document.getElementById("mytickets-list");
+    document.getElementById("mytickets-search").value = "";
+    
+    // モーダル展開時は必ず「現在の申請」タブを初期状態とする
+    switchMyTicketsTab('active');
+    
+    container.innerHTML = '<div class="p-10 flex flex-col items-center justify-center text-gray-400 text-sm h-full"><span class="material-symbols-outlined animate-spin mb-2 text-4xl">progress_activity</span>' + escapeHTML(t('myTicketsLoading')) + '</div>';
+    
+    google.script.run
+      .withSuccessHandler(tickets => {
+        allMyTickets = tickets;
+        if(currentMyTicketsTab === 'active') {
+          renderMyTickets(allMyTickets);
+        }
+      })
+      .withFailureHandler(e => {
+        container.innerHTML = '<div class="p-10 text-red-500 text-center flex flex-col items-center h-full justify-center"><span class="material-symbols-outlined text-4xl mb-2 text-red-400">error</span>' + escapeHTML(t('myTicketsFetchFailed')) + '</div>';
+      })
+      .getMyTickets();
+  }
+
+  /**
+   * 申請履歴モーダルを閉じる
+   */
+  function closeMyTicketsModal() {
+    document.getElementById("wf-mytickets-modal").classList.add("hidden");
+  }
+
+  /**
+   * 現在の申請タブと過去ログ（アーカイブ）タブのUI切り替えを制御する
+   * @param {string} tab - 切り替え先のタブ識別子 ('active' または 'archive')
+   */
+  function switchMyTicketsTab(tab) {
+    currentMyTicketsTab = tab;
+    const tabActive = document.getElementById("tab-active-tickets");
+    const tabArchive = document.getElementById("tab-archive-tickets");
+    const searchActive = document.getElementById("active-search-container");
+    const searchArchive = document.getElementById("archive-search-container");
+    const container = document.getElementById("mytickets-list");
+
+    if (tab === 'active') {
+      tabActive.className = "px-6 py-2 text-center border-b-2 border-theme text-theme font-bold transition-colors";
+      tabArchive.className = "px-6 py-2 text-center border-b-2 border-transparent text-gray-500 hover:bg-gray-50 hover:text-gray-700 transition-colors";
+      searchActive.classList.remove("hidden");
+      searchArchive.classList.add("hidden");
+      // キャッシュ上のデータを即時描画
+      renderMyTickets(allMyTickets); 
+    } else {
+      tabArchive.className = "px-6 py-2 text-center border-b-2 border-theme text-theme font-bold transition-colors";
+      tabActive.className = "px-6 py-2 text-center border-b-2 border-transparent text-gray-500 hover:bg-gray-50 hover:text-gray-700 transition-colors";
+      searchActive.classList.add("hidden");
+      searchArchive.classList.remove("hidden");
+      container.innerHTML = '<div class="text-gray-400 flex flex-col items-center justify-center h-full py-16"><span class="material-symbols-outlined text-5xl mb-3 text-gray-300">manage_search</span>' + escapeHTML(t('myTicketsArchivePrompt')) + '</div>';
+    }
+  }
+
+  /**
+   * アーカイブされたチケットの検索をバックエンドに要求し、結果を描画する
+   */
+  function executeArchiveSearch() {
+    const query = document.getElementById("archive-search-query").value.trim();
+    const dateFrom = document.getElementById("archive-search-from").value;
+    const dateTo = document.getElementById("archive-search-to").value;
+    
+    // 検索条件がすべて空の場合はバックエンド通信を行わない
+    if (!query && !dateFrom && !dateTo) {
+      showCustomAlert(t('myTicketsErrNoSearchCriteria'), true);
+      return;
+    }
+    
+    const container = document.getElementById("mytickets-list");
+    container.innerHTML = '<div class="p-10 flex flex-col items-center justify-center text-gray-400 text-sm h-full"><span class="material-symbols-outlined animate-spin mb-2 text-4xl">progress_activity</span>' + escapeHTML(t('myTicketsArchiveSearching')) + '</div>';
+    
+    google.script.run
+      .withSuccessHandler(archivedTickets => {
+        if(archivedTickets.length > 0) {
+           renderMyTickets(archivedTickets);
+        } else {
+           container.innerHTML = '<div class="text-gray-400 flex flex-col items-center justify-center h-full py-16"><span class="material-symbols-outlined text-5xl mb-3 text-gray-300">search_off</span>' + escapeHTML(t('myTicketsArchiveNoResult')) + '</div>';
+        }
+      })
+      .withFailureHandler(e => {
+        showCustomAlert(t('myTicketsSearchFailed') + e.message, true);
+        container.innerHTML = '';
+      })
+      .searchArchivedMyTickets(query, dateFrom, dateTo);
+  }
+
+  /**
+   * @type {number|null}
+   * 検索入力デバウンス用のタイマーID
+   */
+  let filterTimeoutId = null;
+
+  /**
+   * 検索入力の連続発火を防ぎ、パフォーマンスを最適化する（デバウンス処理）
+   */
+  function debounceFilterMyTickets() {
+    if (filterTimeoutId) clearTimeout(filterTimeoutId);
+    filterTimeoutId = setTimeout(filterMyTickets, 300);
+  }
+
+  /**
+   * 入力されたクエリに基づいて、メモリ上のチケット配列をフィルタリングする
+   */
+  function filterMyTickets() {
+    const query = document.getElementById("mytickets-search").value.toLowerCase();
+    if (!query) {
+      renderMyTickets(allMyTickets);
+      return;
+    }
+    const filtered = allMyTickets.filter(t => {
+      let statusStr = t.status === 'APPROVED' ? t('statusApproved') : t.status === 'REJECTED' ? t('statusRejected') : t.status === 'RETURNED' ? t('statusReturned') : t('statusPending');
+      return t.subject.toLowerCase().includes(query) || statusStr.toLowerCase().includes(query);
+    });
+    renderMyTickets(filtered);
+  }
+
+  /**
+   * チケットの配列を受け取り、リスト領域にHTMLを生成して一括描画する
+   * @param {Array<Object>} tickets - 描画するチケット情報の配列
+   */
+  function renderMyTickets(tickets) {
+    const container = document.getElementById("mytickets-list");
+    if (!tickets || tickets.length === 0) {
+      container.innerHTML = '<div class="text-gray-400 flex flex-col items-center justify-center h-full py-16"><span class="material-symbols-outlined text-5xl mb-3 text-gray-300">receipt_long</span>' + escapeHTML(t('myTicketsNoTickets')) + '</div>';
+      return;
+    }
+
+    let html = '<ul class="divide-y divide-gray-100">';
+    tickets.forEach(task => {
+      let badgeClass = '';
+      let badgeText = '';
+      
+      // ステータスに応じたバッジのクラスとテキストを判定
+      if (task.status === 'APPROVED') {
+        badgeClass = 'bg-green-100 text-green-700 border-green-200';
+        badgeText = t('statusApproved');
+      } else if (task.status === 'REJECTED') {
+        badgeClass = 'bg-red-100 text-red-700 border-red-200';
+        badgeText = t('statusRejected');
+      } else if (task.status === 'RETURNED') {
+        badgeClass = 'bg-yellow-100 text-yellow-700 border-yellow-200';
+        badgeText = t('statusReturned');
+      } else {
+        badgeClass = 'bg-blue-100 text-blue-700 border-blue-200';
+        badgeText = t('statusPending');
+      }
+
+      // アーカイブデータ判別用のバッジ生成
+      const archiveBadge = task.isArchived 
+        ? '<span class="ml-2 bg-gray-200 text-gray-600 text-[10px] px-1.5 py-0.5 rounded font-bold border border-gray-300 shrink-0">' + escapeHTML(t('badgeArchiveLog')) + '</span>' 
+        : '';
+      
+      // セキュリティ対応: シングルクォートのエスケープ漏れによる属性インジェクション(XSS)を防止
+      const taskJson = encodeURIComponent(JSON.stringify(task)).replace(/'/g, "%27");
+      
+      html += `
+        <li class="p-4 hover:bg-gray-50 transition-colors cursor-pointer group" onclick="openApproveModal('${taskJson}')">
+          <div class="flex items-center justify-between mb-2">
+            <div class="flex items-center gap-3 w-full pr-4">
+              <span class="px-2 py-0.5 rounded text-xs font-bold border shrink-0 w-16 text-center ${badgeClass}">${escapeHTML(badgeText)}</span>
+              <span class="text-sm font-bold text-gray-800 group-hover:text-theme transition-colors truncate flex items-center">${escapeHTML(task.subject)}${archiveBadge}</span>
+            </div>
+            <span class="material-symbols-outlined text-gray-300 group-hover:text-theme text-[20px] shrink-0">chevron_right</span>
+          </div>
+          <div class="flex items-center text-xs text-gray-500 gap-4 ml-[85px]">
+            <span class="flex items-center" title="${escapeHTML(t('tooltipAppliedAt'))}"><span class="material-symbols-outlined text-[14px] mr-1">schedule</span>${escapeHTML(task.appliedAt)}</span>
+            ${task.status === 'PENDING' ? `<span class="flex items-center text-blue-500 font-bold" title="${escapeHTML(t('tooltipCurrentStep'))}"><span class="material-symbols-outlined text-[14px] mr-1">trending_flat</span>Step ${escapeHTML(task.currentStep)} / ${escapeHTML(task.totalSteps)}</span>` : ''}
+          </div>
+        </li>
+      `;
+    });
+    html += '</ul>';
+    
+    // 過去ログ検索結果が上限(100件)に達している可能性がある場合のヒント表示
+    if (currentMyTicketsTab === 'archive' && tickets.length === 100) {
+       html += '<div class="p-3 text-center text-xs text-gray-500 bg-yellow-50 border-t border-yellow-100">' + escapeHTML(t('myTicketsTooManyResults')) + '</div>';
+    }
+
+    container.innerHTML = html;
+  }
+</script>

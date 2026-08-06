@@ -1,0 +1,280 @@
+<!--
+ ====================================================================
+  Google Workspace Portal
+ 
+  Copyright (c) 2026 4U, Inc. All Rights Reserved.
+  Released under the MIT License.
+  https://corp-4u.com/
+ ====================================================================
+-->
+<!-- 承認・確認アクション モーダル -->
+<div id="wf-approve-modal" class="hidden fixed inset-0 z-[70] flex items-center justify-center bg-gray-900 bg-opacity-60 backdrop-blur-sm p-4">
+  <div class="bg-white rounded-xl shadow-2xl w-full max-w-4xl flex flex-col max-h-[95vh] overflow-hidden">
+    
+    <div class="p-5 border-b shrink-0 flex justify-between items-center bg-gray-50">
+      <h3 class="text-lg font-bold text-gray-800 flex items-center">
+        <span class="material-symbols-outlined mr-2 text-theme" id="approve-icon">task_alt</span>
+        <span id="approve-title-text"></span>
+      </h3>
+      <button onclick="closeApproveModal()" class="text-gray-400 hover:bg-gray-200 p-1 rounded-full"><span class="material-symbols-outlined">close</span></button>
+    </div>
+    
+    <div class="p-6 overflow-y-auto flex-grow bg-white">
+      <div class="flex flex-col gap-4">
+        <div>
+          <span class="text-xs font-bold text-gray-500" id="label-approve-subject"></span>
+          <h2 id="approve-subject" class="text-xl font-bold text-gray-800 mt-1"></h2>
+        </div>
+        <div class="flex gap-6 text-sm text-gray-600 border-b pb-4">
+          <div><span class="text-xs font-bold text-gray-400 block" id="label-approve-applicant"></span><span id="approve-applicant" class="font-bold"></span></div>
+          <div><span class="text-xs font-bold text-gray-400 block" id="label-approve-date"></span><span id="approve-date"></span></div>
+        </div>
+        
+        <div>
+          <span class="text-xs font-bold text-gray-500 mb-2 block" id="label-approve-body"></span>
+          <div id="approve-body" class="markdown-body text-sm bg-gray-50 p-4 rounded-lg border border-gray-100 min-h-[100px]"></div>
+        </div>
+        
+        <div id="approve-files-section" class="hidden">
+          <span class="text-xs font-bold text-gray-500 mb-2 block" id="label-approve-files"></span>
+          <div id="approve-files-container" class="flex flex-wrap gap-2"></div>
+        </div>
+        
+        <div id="approve-comment-section" class="mt-4 pt-4 border-t">
+          <span class="text-xs font-bold text-gray-500 mb-2 block" id="label-approve-comment"></span>
+          <textarea id="approve-comment" rows="3" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-theme text-sm"></textarea>
+        </div>
+      </div>
+    </div>
+    
+    <!-- アクションボタン領域 -->
+    <div id="approve-actions-container" class="p-4 border-t shrink-0 bg-gray-50 flex justify-end gap-2 rounded-b-xl">
+    </div>
+  </div>
+</div>
+
+<script>
+  /**
+   * モーダル内の多言語辞書
+   */
+  const I18N_APPROVE = {
+    ja: {
+      titleDetail: "申請の詳細",
+      titleHistory: "申請履歴の詳細",
+      titleView: "供覧の確認",
+      titleApprove: "承認・決裁処理",
+      labelSubject: "件名",
+      labelApplicant: "申請者",
+      labelDate: "申請日時",
+      labelBody: "詳細内容",
+      labelFiles: "添付ファイル・関連リンク",
+      labelComment: "処理コメント (任意 / 差戻し・却下時は必須)",
+      placeholderComment: "承認時の申し送り事項や、却下理由などを入力...",
+      btnOpenFile: "ファイルを開く",
+      btnClose: "閉じる",
+      btnCancel: "キャンセル",
+      btnConfirm: "確認しました (既読にする)",
+      btnReject: "却下",
+      btnReturn: "差戻し",
+      btnApprove: "承認する",
+      badgeApproved: "承認済",
+      badgeRejected: "却下",
+      badgeReturned: "差戻し",
+      badgeInProgress: "進行中",
+      alertCommentRequired: "却下・差戻しの場合はコメント（理由）を入力してください。",
+      confirmMessage: "この申請を「{0}」します。\nよろしいですか？",
+      actionApprove: "承認",
+      actionConfirm: "確認",
+      actionReject: "却下",
+      actionReturn: "差戻し",
+      alertSuccess: "「{0}」処理が完了しました。",
+      alertFailed: "処理に失敗しました: ",
+      btnExecuteModal: "実行する",
+      processing: "処理を実行しています..."
+    },
+    en: {
+      titleDetail: "Application Details",
+      titleHistory: "Application History Details",
+      titleView: "Confirm FYI",
+      titleApprove: "Approval / Decision Process",
+      labelSubject: "Subject",
+      labelApplicant: "Applicant",
+      labelDate: "Applied At",
+      labelBody: "Details",
+      labelFiles: "Attachments / Related Links",
+      labelComment: "Action Comment (Optional / Required for Return/Reject)",
+      placeholderComment: "Enter forwarding remarks for approval, or reasons for rejection...",
+      btnOpenFile: "Open File",
+      btnClose: "Close",
+      btnCancel: "Cancel",
+      btnConfirm: "Confirmed (Mark as Read)",
+      btnReject: "Reject",
+      btnReturn: "Return",
+      btnApprove: "Approve",
+      badgeApproved: "Approved",
+      badgeRejected: "Rejected",
+      badgeReturned: "Returned",
+      badgeInProgress: "In Progress",
+      alertCommentRequired: "A comment (reason) is required when rejecting or returning.",
+      confirmMessage: "Are you sure you want to '{0}' this application?",
+      actionApprove: "Approve",
+      actionConfirm: "Confirm",
+      actionReject: "Reject",
+      actionReturn: "Return",
+      alertSuccess: "'{0}' process has been completed.",
+      alertFailed: "Process failed: ",
+      btnExecuteModal: "Execute",
+      processing: "Processing..."
+    }
+  };
+
+  /**
+   * 現在表示しているタスクの情報を保持するオブジェクト
+   * @type {Object|null}
+   */
+  let currentTask = null;
+
+  /**
+   * 承認・確認アクションモーダルを開き、タスク情報を描画する
+   * @param {string} taskJson - URIエンコードされたタスク情報のJSON文字列
+   */
+  function openApproveModal(taskJson) {
+    currentTask = JSON.parse(decodeURIComponent(taskJson));
+    const lang = (typeof userLocale !== 'undefined') ? userLocale : 'ja';
+    const t = I18N_APPROVE[lang] || I18N_APPROVE['en'];
+    
+    // 静的ラベルの翻訳バインディング
+    document.getElementById("label-approve-subject").innerText = t.labelSubject;
+    document.getElementById("label-approve-applicant").innerText = t.labelApplicant;
+    document.getElementById("label-approve-date").innerText = t.labelDate;
+    document.getElementById("label-approve-body").innerText = t.labelBody;
+    document.getElementById("label-approve-files").innerText = t.labelFiles;
+    document.getElementById("label-approve-comment").innerText = t.labelComment;
+    document.getElementById("approve-comment").placeholder = t.placeholderComment;
+
+    document.getElementById("approve-subject").innerText = currentTask.subject;
+    document.getElementById("approve-applicant").innerText = currentTask.applicant;
+    document.getElementById("approve-date").innerText = currentTask.appliedAt;
+    
+    // セキュリティ: DOMPurify を使って Markdown から変換された HTML の XSS を完全に防ぐ
+    document.getElementById("approve-body").innerHTML = DOMPurify.sanitize(marked.parse(currentTask.body));
+    document.getElementById("approve-comment").value = "";
+    
+    // 添付ファイルの表示 (ドライブのファイルリンクを生成)
+    const filesContainer = document.getElementById("approve-files-container");
+    const filesSection = document.getElementById("approve-files-section");
+    if (currentTask.files && currentTask.files.length > 0) {
+      filesContainer.innerHTML = currentTask.files.map(f => {
+        const fileId = typeof f === 'string' ? f : f.id;
+        const fileName = typeof f === 'string' ? t.btnOpenFile : f.name;
+        return `<a href="https://drive.google.com/file/d/${encodeURIComponent(fileId)}/view" target="_blank" class="inline-flex items-center px-3 py-1.5 bg-white border border-gray-200 hover:border-theme hover:text-theme text-gray-700 rounded text-sm shadow-sm transition-colors group">
+           <span class="material-symbols-outlined text-[16px] mr-1 text-[#4285F4] group-hover:text-theme">description</span>${escapeHTML(fileName)}
+         </a>`;
+      }).join('');
+      filesSection.classList.remove("hidden");
+    } else {
+      filesSection.classList.add("hidden");
+    }
+    
+    // アクションごとのボタン生成
+    const actionsContainer = document.getElementById("approve-actions-container");
+    const commentSection = document.getElementById("approve-comment-section");
+    const iconEl = document.getElementById("approve-icon");
+    const titleEl = document.getElementById("approve-title-text");
+    
+    if (currentTask.actionType === 'READ_ONLY') {
+      iconEl.innerText = "history";
+      
+      let statusBadge = '';
+      if (currentTask.status === 'APPROVED') {
+        statusBadge = `<span class="ml-3 px-2 py-0.5 bg-green-100 text-green-700 border border-green-200 rounded text-xs font-bold">${escapeHTML(t.badgeApproved)}</span>`;
+      } else if (currentTask.status === 'REJECTED') {
+        statusBadge = `<span class="ml-3 px-2 py-0.5 bg-red-100 text-red-700 border border-red-200 rounded text-xs font-bold">${escapeHTML(t.badgeRejected)}</span>`;
+      } else if (currentTask.status === 'RETURNED') {
+        statusBadge = `<span class="ml-3 px-2 py-0.5 bg-yellow-100 text-yellow-700 border border-yellow-200 rounded text-xs font-bold">${escapeHTML(t.badgeReturned)}</span>`;
+      } else {
+        statusBadge = `<span class="ml-3 px-2 py-0.5 bg-blue-100 text-blue-700 border border-blue-200 rounded text-xs font-bold">${escapeHTML(t.badgeInProgress)} (Step ${escapeHTML(currentTask.currentStep)}/${escapeHTML(currentTask.totalSteps)})</span>`;
+      }
+      
+      titleEl.innerHTML = `${escapeHTML(t.titleHistory)} ${statusBadge}`;
+      commentSection.classList.add("hidden"); 
+      actionsContainer.innerHTML = `
+        <button onclick="closeApproveModal()" class="px-8 py-2 border border-gray-300 rounded-lg text-gray-700 bg-white hover:bg-gray-100 font-bold text-sm shadow-sm transition-colors">${escapeHTML(t.btnClose)}</button>
+      `;
+    } else if (currentTask.actionType === 'VIEW') {
+      iconEl.innerText = "visibility";
+      titleEl.innerText = t.titleView;
+      commentSection.classList.remove("hidden");
+      actionsContainer.innerHTML = `
+        <button onclick="closeApproveModal()" class="px-5 py-2 border rounded-lg text-gray-600 hover:bg-gray-100 font-bold text-sm">${escapeHTML(t.btnClose)}</button>
+        <button onclick="executeAction('CONFIRM')" class="px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 font-bold shadow flex items-center text-sm"><span class="material-symbols-outlined mr-1 text-[18px]">done_all</span>${escapeHTML(t.btnConfirm)}</button>
+      `;
+    } else {
+      iconEl.innerText = "edit_document";
+      titleEl.innerText = t.titleApprove;
+      commentSection.classList.remove("hidden");
+      actionsContainer.innerHTML = `
+        <button onclick="closeApproveModal()" class="px-5 py-2 border rounded-lg text-gray-600 hover:bg-gray-100 font-bold text-sm mr-auto">${escapeHTML(t.btnCancel)}</button>
+        <button onclick="executeAction('REJECT')" class="px-5 py-2 bg-white border border-red-500 text-red-500 hover:bg-red-50 rounded-lg font-bold shadow-sm flex items-center text-sm"><span class="material-symbols-outlined mr-1 text-[18px]">block</span>${escapeHTML(t.btnReject)}</button>
+        <button onclick="executeAction('RETURN')" class="px-5 py-2 bg-white border border-yellow-500 text-yellow-600 hover:bg-yellow-50 rounded-lg font-bold shadow-sm flex items-center text-sm"><span class="material-symbols-outlined mr-1 text-[18px]">undo</span>${escapeHTML(t.btnReturn)}</button>
+        <button onclick="executeAction('APPROVE')" class="px-8 py-2 bg-theme text-white rounded-lg hover:opacity-90 font-bold shadow flex items-center text-sm"><span class="material-symbols-outlined mr-1 text-[18px]">check_circle</span>${escapeHTML(t.btnApprove)}</button>
+      `;
+    }
+    
+    document.getElementById("wf-approve-modal").classList.remove("hidden");
+  }
+
+  /**
+   * 承認・確認アクションモーダルを閉じる
+   */
+  function closeApproveModal() {
+    document.getElementById("wf-approve-modal").classList.add("hidden");
+  }
+
+  /**
+   * 選択されたアクション（承認、確認、却下、差戻し）を実行する
+   * @param {string} actionType - 実行するアクションの種別
+   */
+  function executeAction(actionType) {
+    const lang = (typeof userLocale !== 'undefined') ? userLocale : 'ja';
+    const t = I18N_APPROVE[lang] || I18N_APPROVE['en'];
+    
+    const comment = document.getElementById("approve-comment").value.trim();
+    if ((actionType === 'REJECT' || actionType === 'RETURN') && !comment) {
+      return showCustomAlert(t.alertCommentRequired, true);
+    }
+    
+    let actionText = '';
+    if (actionType === 'APPROVE') actionText = t.actionApprove;
+    else if (actionType === 'CONFIRM') actionText = t.actionConfirm;
+    else if (actionType === 'REJECT') actionText = t.actionReject;
+    else actionText = t.actionReturn;
+    
+    const isDanger = (actionType === 'REJECT' || actionType === 'RETURN');
+    const confirmMsg = t.confirmMessage.replace('{0}', actionText);
+    
+    showCustomConfirm(confirmMsg, () => {
+      // ※ showSpinner 等は index.html 側で別途 i18n 対応するためここでは固定文字列を許容します
+      showSpinner(t.processing);
+      google.script.run
+        .withSuccessHandler(() => {
+          hideSpinner();
+          closeApproveModal();
+          showCustomAlert(t.alertSuccess.replace('{0}', actionText));
+          
+          if (typeof currentConfig !== 'undefined' && currentConfig && currentConfig.layout) {
+            currentConfig.layout.forEach(widget => {
+              if (widget.type === 'workflow' && typeof refreshWidget === 'function') {
+                refreshWidget(widget.id);
+              }
+            });
+          }
+        })
+        .withFailureHandler(e => {
+          hideSpinner();
+          showCustomAlert(t.alertFailed + e.message, true);
+        })
+        .executeWorkflowAction(currentTask.ticketId, currentTask.stepOrder, actionType, comment);
+    }, t.btnExecuteModal, isDanger);
+  }
+</script>
