@@ -3256,9 +3256,28 @@
               minHeight: "100px" 
             });
           }
+          
+          // 通信完了までエディタを非活性(readOnly)にし、プレースホルダーを表示
+          adminEmergencyEditor.value("データの取得中...");
+          adminEmergencyEditor.codemirror.setOption("readOnly", "nocursor");
+          document.querySelector('.editor-toolbar').style.opacity = '0.5';
+          document.querySelector('.editor-toolbar').style.pointerEvents = 'none';
+
           google.script.run
             .withSuccessHandler(data => {
-              if(data.emergencyMessage) adminEmergencyEditor.value(data.emergencyMessage);
+              // 取得完了後、エディタを活性化しデータをセット
+              adminEmergencyEditor.codemirror.setOption("readOnly", false);
+              document.querySelector('.editor-toolbar').style.opacity = '1';
+              document.querySelector('.editor-toolbar').style.pointerEvents = 'auto';
+              adminEmergencyEditor.value(data.emergencyMessage || "");
+            })
+            .withFailureHandler(err => {
+              // エラー時も活性化し、入力を許容する
+              adminEmergencyEditor.codemirror.setOption("readOnly", false);
+              document.querySelector('.editor-toolbar').style.opacity = '1';
+              document.querySelector('.editor-toolbar').style.pointerEvents = 'auto';
+              adminEmergencyEditor.value("");
+              showCustomAlert("緊急メッセージの取得に失敗しました", true);
             })
             .getBcpData();
 
@@ -3755,7 +3774,8 @@
           const currentUser = currentConfig ? currentConfig.userEmail : "";
           const filteredTasks = tasks.filter(t => {
             if (currentKanbanScope === 'PERSONAL') {
-              return t.scope === 'PERSONAL' || t.assignee === currentUser;
+              /* マイタスク（PERSONAL）の場合は、自分が担当者のタスクのみに絞り込む */
+              return t.assignee === currentUser;
             }
             return t.scope === currentKanbanScope;
           });
