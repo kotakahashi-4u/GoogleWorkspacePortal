@@ -849,7 +849,7 @@ function getWorkflowRoutes() {
     if (!r[0]) continue;
     const routeId = r[0], scope = r[2], owner = r[3];
     
-    if (owner === email || scope === 'PERSONAL' || groups.includes(scope)) {
+    if (owner === email || (groups && groups.includes(scope))) {
       const steps = stepsData.filter(s => s[0] === routeId).map(s => ({
         stepOrder: Number(s[1]), actionType: s[2], assignee: s[3]
       })).sort((a, b) => a.stepOrder - b.stepOrder);
