@@ -42,7 +42,7 @@ Google Workspace (Google Apps Script) だけで構築された、高速・高機
 **ステップ1：バックエンドAPI（Project 2）の構築**
 1. [Google Apps Script](https://script.google.com/)にて「新しいプロジェクト（Project 2）」を作成します。
 2. データベース用の「新規Googleスプレッドシート」と、ワークフロー添付ファイル用の「新規Googleドライブフォルダ」を作成し、それぞれのIDを控えます。
-3. `Project2(API)` 用のコード（Code.gs）を配置します。
+3. [セキュア版code_secureのProject2](https://github.com/kotakahashi-4u/GoogleWorkspacePortal/tree/main/code_secure/Project2)の `.gs` ファイルをプロジェクトにコピーして配置します。
 4. **スクリプトプロパティ**に以下を設定します。
    * `LINK_SPREADSHEET_ID` : スプレッドシートのID
    * `WORKFLOW_FOLDER_ID` : フォルダのID
@@ -53,7 +53,7 @@ Google Workspace (Google Apps Script) だけで構築された、高速・高機
 
 **ステップ2：フロントエンドUI（Project 1）の構築**
 1. [Google Apps Script](https://script.google.com/)にて、もう一つ「新しいプロジェクト（Project 1）」を作成します。
-2. `Project1(UI)` 用のコード群（Code.gs および 各種 .html）を配置します。
+3. [セキュア版code_secureのProject1](https://github.com/kotakahashi-4u/GoogleWorkspacePortal/tree/main/code_secure/Project1)の `.html` および `.gs` ファイルをプロジェクトにコピーして配置します。
 3. **拡張サービスの有効化**: 「サービス ＋」から以下を追加します。
    * `Admin SDK API`, `Google Calendar API`, `Google Drive API（v2）`, `Tasks API`
 4. **スクリプトプロパティ**に以下を設定します。
@@ -71,7 +71,7 @@ Google Workspace (Google Apps Script) だけで構築された、高速・高機
 **パターンA：スタンドアロン型**
 1. [Google Apps Script](https://script.google.com/)にて「新しいプロジェクト」を作成します。
 2. データベース用の「新規Googleスプレッドシート」を作成し、IDを控えます。
-3. 従来版の `.html` および `.gs` ファイルを配置します。
+3. [従来版code](https://github.com/kotakahashi-4u/GoogleWorkspacePortal/tree/main/code)の `.html` および `.gs` ファイルをプロジェクトにコピーして配置します。
 4. 「サービス ＋」から以下を追加します。(`Admin SDK API`, `Google Calendar API`, `Google Drive API(v2)`, `Tasks API`)
 5. スクリプトプロパティに `LINK_SPREADSHEET_ID` と `WORKFLOW_FOLDER_ID` を設定します。
 6. `initializeDatabaseSheets` を実行してDBを初期化します。
