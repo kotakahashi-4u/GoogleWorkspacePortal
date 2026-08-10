@@ -1975,11 +1975,14 @@
               // 3. Cloud Search設定
               isCloudSearchEnabled = data.cloudSearchEnabled;
               document.getElementById("admin-cloud-search-toggle").checked = isCloudSearchEnabled;
+              const pcContainer = document.getElementById("cloud-search-container-pc");
+              const mobileBtn = document.getElementById("cloud-search-btn-mobile");
               if (isCloudSearchEnabled) {
-                const pcContainer = document.getElementById("cloud-search-container-pc");
-                if(pcContainer) pcContainer.classList.remove("hidden");
-                const mobileBtn = document.getElementById("cloud-search-btn-mobile");
+                if(pcContainer) { pcContainer.classList.remove("hidden"); pcContainer.classList.add("md:flex"); }
                 if(mobileBtn) { mobileBtn.classList.remove("hidden"); mobileBtn.classList.add("flex"); }
+              } else {
+                if(pcContainer) { pcContainer.classList.add("hidden"); pcContainer.classList.remove("md:flex"); }
+                if(mobileBtn) { mobileBtn.classList.add("hidden"); mobileBtn.classList.remove("flex"); }
               }
 
               // アーカイブスケジュール
@@ -3413,10 +3416,10 @@
           const pcContainer = document.getElementById("cloud-search-container-pc");
           const mobileBtn = document.getElementById("cloud-search-btn-mobile");
           if (enableSearch) {
-            if(pcContainer) pcContainer.classList.remove("hidden");
+            if(pcContainer) { pcContainer.classList.remove("hidden"); pcContainer.classList.add("md:flex"); }
             if(mobileBtn) { mobileBtn.classList.remove("hidden"); mobileBtn.classList.add("flex"); }
           } else {
-            if(pcContainer) pcContainer.classList.add("hidden");
+            if(pcContainer) { pcContainer.classList.add("hidden"); pcContainer.classList.remove("md:flex"); }
             if(mobileBtn) { mobileBtn.classList.add("hidden"); mobileBtn.classList.remove("flex"); }
           }
 
