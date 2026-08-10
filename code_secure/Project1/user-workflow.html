@@ -1,0 +1,445 @@
+<!--
+ ====================================================================
+  Google Workspace Portal
+ 
+  Copyright (c) 2026 4U, Inc. All Rights Reserved.
+  Released under the MIT License.
+  https://corp-4u.com/
+ ====================================================================
+-->
+<!-- ワークフロー管理用 GUIビルダー (個人/組織用) -->
+<div id="wf-user-modal" class="hidden fixed inset-0 z-[80] flex items-center justify-center bg-gray-900 bg-opacity-50 backdrop-blur-sm p-4">
+  <div class="bg-white rounded-xl shadow-2xl w-full max-w-5xl flex flex-col h-[90vh]">
+    
+    <div class="p-6 border-b shrink-0 flex justify-between items-center bg-gray-50 rounded-t-xl">
+      <div>
+        <h3 class="text-xl font-bold text-gray-800 flex items-center">
+          <span class="material-symbols-outlined mr-2 text-theme">account_tree</span><span data-i18n="wfUserModalTitle">マイルート設定（申請テンプレート）</span>
+        </h3>
+        <p class="text-xs text-gray-500 mt-1" data-i18n="wfUserModalDesc">自分専用、または所属グループ全員が使える申請ルートを作成します。</p>
+      </div>
+      <button onclick="closeWfUserModal()" class="text-gray-400 hover:text-gray-600 p-2 rounded-full hover:bg-gray-200 transition-colors">
+        <span class="material-symbols-outlined">close</span>
+      </button>
+    </div>
+    
+    <!-- グループメアドの予測入力用リスト -->
+    <datalist id="wf-group-emails-list"></datalist>
+    <div class="p-6 overflow-y-auto flex-grow bg-gray-100" id="wf-route-list"></div>
+
+    <!-- モバイル時は縦並びにし、パディングを調整 -->
+    <div class="p-4 sm:p-6 border-t shrink-0 bg-white flex flex-col sm:flex-row justify-between items-center gap-3 rounded-b-xl shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
+       <button onclick="addNewRoute()" class="w-full sm:w-auto justify-center text-theme font-bold px-4 py-2 border-2 border-theme border-dashed bg-white hover:bg-theme/10 rounded transition-colors flex items-center">
+         <span class="material-symbols-outlined mr-1 text-[18px]">add</span><span data-i18n="wfAddNewRoute">新しいルートを追加</span>
+       </button>
+       <button id="btn-save-routes" onclick="saveRoutes()" class="w-full sm:w-auto justify-center bg-theme text-white font-bold px-8 py-3 rounded-lg shadow hover:opacity-90 transition-opacity" data-i18n="wfSaveRoutes">
+         ルートを保存する
+       </button>
+    </div>
+  </div>
+</div>
+
+<script>
+  /**
+   * ワークフローのルート情報を保持する配列
+   * @type {Array<Object>}
+   */
+  let wfRoutes = [];
+
+  /**
+   * 削除されたルートのIDを保持する配列
+   * @type {Array<string>}
+   */
+  let deletedWfRouteIds = [];
+
+  /**
+   * Sortable.jsのインスタンスを保持するオブジェクト
+   * @type {Object}
+   */
+  let sortableStepsInstances = {};
+
+  /**
+   * 個人担当者入力時のサジェスト用メールアドレスキャッシュ
+   * @type {Array<string>}
+   */
+  let allGroupMembersCache = [];
+
+  /**
+   * マイルート設定モーダルを開き、必要なデータを読み込む
+   */
+  function openWfUserModal() {
+    document.getElementById('wf-user-modal').classList.remove('hidden');
+
+    /**
+     * バックグラウンドで最新のルート情報を取得し、差分があれば画面を静かに更新する
+     */
+    const fetchLatestWfRoutes = () => {
+      google.script.run.withSuccessHandler(routes => {
+        const oldStr = JSON.stringify(window.wfRoutesCache || []);
+        const newStr = JSON.stringify(routes);
+        if (oldStr !== newStr) {
+          window.wfRoutesCache = routes;
+          wfRoutes = JSON.parse(JSON.stringify(routes));
+          renderWfRoutes();
+        }
+      }).getWorkflowRoutes();
+    };
+
+    // キャッシュが存在する場合は即時描画し、裏側で同期チェックを行う
+    if (window.wfRoutesCache && window.allGroupMembersCache && window.allGroupMembersCache.length > 0) {
+      wfRoutes = JSON.parse(JSON.stringify(window.wfRoutesCache));
+      deletedWfRouteIds = [];
+      renderWfRoutes();
+      fetchLatestWfRoutes();
+    } else {
+      showSpinner(t('wfPreparingDb'));
+      let routesLoaded = false; 
+      let membersLoaded = false;
+      
+      google.script.run.withSuccessHandler(routes => {
+        window.wfRoutesCache = routes;
+        wfRoutes = JSON.parse(JSON.stringify(routes));
+        deletedWfRouteIds = [];
+        routesLoaded = true; 
+        checkReady();
+      }).withFailureHandler(e => { 
+        hideSpinner(); 
+        showCustomAlert(e.message, true); 
+      }).getWorkflowRoutes();
+      
+      window.allGroupMembersCache = window.allGroupMembersCache || [];
+      if (window.allGroupMembersCache.length > 0) {
+        membersLoaded = true; 
+        checkReady();
+      } else {
+        google.script.run.withSuccessHandler(members => {
+          window.allGroupMembersCache = members;
+          membersLoaded = true; 
+          checkReady();
+        }).withFailureHandler(e => {
+          window.allGroupMembersCache = [currentConfig.userEmail || ''];
+          membersLoaded = true; 
+          checkReady();
+        }).getAllMyGroupMembers();
+      }
+
+      /**
+       * ルート情報とメンバー情報の両方が読み込まれたか確認し、描画を実行する
+       */
+      function checkReady() {
+        if (routesLoaded && membersLoaded) {
+          renderWfRoutes();
+          hideSpinner();
+        }
+      }
+    }
+  }
+
+  /**
+   * マイルート設定モーダルを閉じる
+   */
+  function closeWfUserModal() {
+    document.getElementById('wf-user-modal').classList.add('hidden');
+  }
+
+  /**
+   * 担当者の種類（個人/グループ）が変更された際、サジェストリストを切り替える
+   * @param {HTMLElement} selectEl - 変更されたセレクト要素
+   */
+  function toggleAssigneeList(selectEl) {
+    const type = selectEl.value;
+    const inputEl = selectEl.closest('.step-item').querySelector('.step-assignee');
+    if (type === 'GROUP') {
+      inputEl.setAttribute('list', 'wf-group-emails-list');
+      inputEl.placeholder = t('wfPlaceholderGroupInput') + t('wfPlaceholderSuffix');
+    } else {
+      inputEl.setAttribute('list', 'wf-user-emails-list');
+      inputEl.placeholder = t('wfPlaceholderUserInput') + t('wfPlaceholderSuffix');
+    }
+  }
+
+  /**
+   * 保持しているルート情報に基づいて、DOMを再構築・描画する
+   */
+  function renderWfRoutes() {
+    const container = document.getElementById('wf-route-list');
+    
+    Object.values(sortableStepsInstances).forEach(inst => inst.destroy());
+    sortableStepsInstances = {};
+
+    if (wfRoutes.length === 0) {
+       container.innerHTML = '<div class="flex flex-col items-center justify-center py-20 text-gray-400"><span class="material-symbols-outlined text-5xl mb-4 text-gray-300">account_tree</span><p>' + t('wfNoRoutes') + '</p></div>';
+       return;
+    }
+
+    let scopeOptions = '<option value="PERSONAL">' + escapeHTML(t('wfScopePersonal')) + '</option>';
+    let groupDatalistHtml = ''; 
+    let userDatalistHtml = '';
+
+    userGroups.forEach(g => {
+      scopeOptions += '<option value="' + escapeHTML(g) + '">' + escapeHTML(t('wfScopeGroupPrefix')) + escapeHTML(g) + '</option>';
+      groupDatalistHtml += '<option value="' + escapeHTML(g) + '">';
+    });
+    
+    (window.allGroupMembersCache || []).forEach(m => {
+      userDatalistHtml += '<option value="' + escapeHTML(m) + '">';
+    });
+
+    document.getElementById('wf-group-emails-list').innerHTML = groupDatalistHtml;
+    if (!document.getElementById('wf-user-emails-list')) {
+      document.body.insertAdjacentHTML('beforeend', '<datalist id="wf-user-emails-list"></datalist>');
+    }
+    document.getElementById('wf-user-emails-list').innerHTML = userDatalistHtml;
+
+    let allRoutesHtml = '';
+
+    wfRoutes.forEach((route, rIndex) => {
+       route.retentionType = route.retentionType || 'PERIOD';
+       route.retentionValue = route.retentionValue || 5;
+
+       let stepsHtml = '';
+       route.steps.forEach((step, sIndex) => {
+          const isGroup = userGroups.includes(step.assignee);
+          
+          stepsHtml += `
+             <div class="flex flex-col sm:flex-row sm:items-center gap-2 mb-3 bg-white p-3 sm:p-2 rounded-lg border border-gray-200 shadow-sm step-item group hover:border-theme transition-colors" data-rindex="${rIndex}" data-sindex="${sIndex}">
+                
+                <div class="flex items-center justify-between sm:hidden mb-1 border-b border-gray-100 pb-2">
+                  <span class="material-symbols-outlined text-gray-400 cursor-grab step-drag-handle">drag_indicator</span>
+                  <button onclick="removeWfStep(${rIndex}, ${sIndex})" class="text-gray-400 hover:text-red-500 bg-gray-50 border border-gray-200 rounded p-1 shadow-sm" title="削除">
+                    <span class="material-symbols-outlined text-[18px]">delete</span>
+                  </button>
+                </div>
+
+                <span class="hidden sm:block material-symbols-outlined text-gray-300 cursor-grab step-drag-handle group-hover:text-theme shrink-0 ml-1">drag_indicator</span>
+
+                <div class="flex items-center gap-2 w-full sm:w-auto shrink-0">
+                  <select class="step-action flex-1 sm:flex-none sm:w-24 border border-gray-300 rounded p-1.5 text-sm font-bold text-gray-700 focus:outline-theme bg-gray-50">
+                     <option value="APPROVE" ${step.actionType === 'APPROVE' ? 'selected' : ''}>${escapeHTML(t('wfActionApprove'))}</option>
+                     <option value="VIEW" ${step.actionType === 'VIEW' ? 'selected' : ''}>${escapeHTML(t('wfActionView'))}</option>
+                  </select>
+                  
+                  <select class="step-assignee-type flex-1 sm:flex-none sm:w-24 border border-gray-300 rounded p-1.5 text-sm font-bold text-blue-700 focus:outline-theme bg-blue-50" onchange="toggleAssigneeList(this)">
+                     <option value="USER" ${!isGroup ? 'selected' : ''}>${escapeHTML(t('wfAssigneePersonal'))}</option>
+                     <option value="GROUP" ${isGroup ? 'selected' : ''}>${escapeHTML(t('wfAssigneeGroup'))}</option>
+                  </select>
+                </div>
+
+                <div class="flex-grow flex items-center relative w-full sm:w-auto min-w-[150px]">
+                   <span class="material-symbols-outlined absolute left-2 text-gray-400 text-[18px] hidden sm:block">account_circle</span>
+                   <input type="text" list="${isGroup ? 'wf-group-emails-list' : 'wf-user-emails-list'}" autocomplete="off" class="step-assignee w-full border border-gray-300 rounded p-1.5 sm:pl-8 text-sm focus:outline-theme" placeholder="${isGroup ? escapeHTML(t('wfPlaceholderGroupInput')) : escapeHTML(t('wfPlaceholderUserInput'))}${escapeHTML(t('wfPlaceholderSuffix'))}" value="${escapeHTML(step.assignee)}">
+                </div>
+                
+                <button onclick="removeWfStep(${rIndex}, ${sIndex})" class="hidden sm:block text-gray-300 hover:text-red-500 p-1 transition-colors shrink-0 ml-1" title="削除">
+                  <span class="material-symbols-outlined text-[20px]">delete</span>
+                </button>
+             </div>
+          `;
+       });
+
+       let currentScopeOpts = scopeOptions.replace('value="' + escapeHTML(route.scope) + '"', 'value="' + escapeHTML(route.scope) + '" selected');
+
+       const routeHtml = `
+          <div class="bg-white p-4 sm:p-6 rounded-xl border border-gray-200 shadow-sm mb-6 route-card" data-rindex="${rIndex}">
+             <div class="flex flex-col xl:flex-row justify-between xl:items-center border-b pb-4 mb-4 gap-4">
+                <div class="flex items-center gap-2 w-full xl:w-auto flex-grow max-w-lg">
+                   <span class="material-symbols-outlined text-theme shrink-0">route</span>
+                   <input type="text" class="route-name text-lg font-bold border-b-2 border-dashed border-gray-300 focus:border-theme focus:outline-none w-full px-1" value="${escapeHTML(route.name)}" placeholder="${escapeHTML(t('wfRouteNamePlaceholder'))}">
+                </div>
+                
+                <div class="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4 w-full xl:w-auto">
+                   
+                   <select class="route-scope text-sm border border-gray-300 rounded p-1.5 focus:outline-theme bg-gray-50 text-gray-700 font-bold w-full sm:w-auto">
+                     ${currentScopeOpts}
+                   </select>
+                   
+                   <div class="flex items-center gap-2 bg-gray-50 p-1.5 border border-gray-200 rounded w-full sm:w-auto">
+                     <span class="material-symbols-outlined text-[18px] text-gray-400 ml-1 shrink-0">inventory_2</span>
+                     <select class="route-retention-type text-sm font-bold text-gray-600 border-none bg-transparent focus:ring-0 cursor-pointer shrink-0" onchange="toggleWfRetentionInput(this, ${rIndex})">
+                       <option value="PERIOD" ${route.retentionType === 'PERIOD' ? 'selected' : ''}>${escapeHTML(t('wfRetentionPeriod'))}</option>
+                       <option value="DATE" ${route.retentionType === 'DATE' ? 'selected' : ''}>${escapeHTML(t('wfRetentionDate'))}</option>
+                       <option value="PERMANENT" ${route.retentionType === 'PERMANENT' ? 'selected' : ''}>${escapeHTML(t('wfRetentionPermanent'))}</option>
+                     </select>
+                     <div id="retention-value-container-${rIndex}" class="flex items-center flex-grow sm:flex-grow-0">
+                       ${route.retentionType === 'PERIOD' ? '<input type="number" class="route-retention-value w-full sm:w-16 border border-gray-300 rounded px-2 py-0.5 text-center text-sm focus:outline-theme" value="' + escapeHTML(route.retentionValue) + '" min="1" max="99"> <span class="text-xs font-bold text-gray-500 ml-1 shrink-0">' + escapeHTML(t('wfRetentionYearsSuffix')) + '</span>' : ''}
+                       ${route.retentionType === 'DATE' ? '<input type="date" class="route-retention-value w-full sm:w-auto border border-gray-300 rounded px-2 py-0.5 text-sm focus:outline-theme" value="' + escapeHTML(route.retentionValue) + '">' : ''}
+                       ${route.retentionType === 'PERMANENT' ? '<input type="hidden" class="route-retention-value" value=""><span class="text-xs font-bold text-gray-400 mr-2 shrink-0">' + escapeHTML(t('wfRetentionNotDiscarded')) + '</span>' : ''}
+                     </div>
+                   </div>
+
+                   <div class="flex items-center justify-between sm:justify-start gap-3 w-full sm:w-auto mt-1 sm:mt-0 shrink-0">
+                      <label class="flex items-center text-sm font-bold text-gray-600 cursor-pointer whitespace-nowrap shrink-0">
+                         <input type="checkbox" class="route-active mr-1.5 h-4 w-4 rounded text-theme focus:ring-theme border-gray-300" ${route.isActive ? 'checked' : ''}> ${escapeHTML(t('wfActiveLabel'))}
+                      </label>
+                      <button onclick="removeWfRoute(${rIndex})" class="text-red-400 hover:text-white hover:bg-red-500 p-1.5 rounded transition-colors flex items-center shrink-0" title="削除">
+                        <span class="material-symbols-outlined text-[20px] sm:mr-0 mr-1">delete_forever</span>
+                        <span class="text-xs sm:hidden font-bold whitespace-nowrap">${escapeHTML(t('wfBtnDeleteRoute'))}</span>
+                      </button>
+                   </div>
+                </div>
+             </div>
+             
+             <div class="bg-gray-50 p-5 rounded-lg border border-gray-200">
+                <h4 class="text-xs font-bold text-gray-500 mb-4 flex items-center tracking-wider"><span class="material-symbols-outlined text-[16px] mr-1">linear_scale</span>${escapeHTML(t('wfStepSettingTitle'))}</h4>
+                <div id="steps-container-${rIndex}" class="min-h-[50px]">
+                   ${stepsHtml}
+                </div>
+                <button onclick="addWfStep(${rIndex})" class="text-sm font-bold text-theme mt-2 hover:bg-theme/10 px-3 py-1.5 rounded transition-colors flex items-center"><span class="material-symbols-outlined text-[18px] mr-1">add_circle</span>${escapeHTML(t('wfAddNewStep'))}</button>
+             </div>
+          </div>
+       `;
+       allRoutesHtml += routeHtml;
+    });
+
+    container.innerHTML = allRoutesHtml;
+
+    wfRoutes.forEach((_, rIndex) => {
+       const stepsContainer = document.getElementById(`steps-container-${rIndex}`);
+       if (stepsContainer) {
+         sortableStepsInstances[`route-${rIndex}`] = new Sortable(stepsContainer, {
+            animation: 150, 
+            handle: '.step-drag-handle', 
+            ghostClass: 'sortable-ghost',
+            onEnd: function() { syncWfRoutesFromUI(); }
+         });
+       }
+    });
+  }
+
+  /**
+   * 新しいルートを末尾に追加する
+   */
+  function addNewRoute() {
+    syncWfRoutesFromUI();
+    wfRoutes.push({ 
+      id: 'route_' + Date.now(), 
+      name: t('wfNewRouteName'), 
+      scope: 'PERSONAL', 
+      isActive: true, 
+      retentionType: 'PERIOD', 
+      retentionValue: 5, 
+      steps: [ { actionType: 'APPROVE', assignee: '' } ] 
+    });
+    renderWfRoutes();
+  }
+
+  /**
+   * 指定したルートに新しいステップを追加する
+   * @param {number} rIndex - 追加先のルートのインデックス
+   */
+  function addWfStep(rIndex) {
+    syncWfRoutesFromUI();
+    wfRoutes[rIndex].steps.push({ actionType: 'APPROVE', assignee: '' });
+    renderWfRoutes();
+  }
+
+  /**
+   * 指定したルートを削除する
+   * @param {number} rIndex - 削除対象のルートのインデックス
+   */
+  function removeWfRoute(rIndex) {
+    showCustomConfirm(t('wfConfirmDeleteRoute'), () => {
+      syncWfRoutesFromUI();
+      deletedWfRouteIds.push(wfRoutes[rIndex].id);
+      wfRoutes.splice(rIndex, 1);
+      renderWfRoutes();
+    }, t('btnDelete'), true);
+  }
+
+  /**
+   * 指定したルート内の特定のステップを削除する
+   * @param {number} rIndex - ルートのインデックス
+   * @param {number} sIndex - 削除対象ステップのインデックス
+   */
+  function removeWfStep(rIndex, sIndex) {
+    syncWfRoutesFromUI();
+    wfRoutes[rIndex].steps.splice(sIndex, 1);
+    renderWfRoutes();
+  }
+
+  /**
+   * 保持期間の種類が変更された際、入力UIを切り替える
+   * @param {HTMLElement} selectEl - 変更されたセレクト要素
+   * @param {number} rIndex - 操作対象のルートのインデックス
+   */
+  function toggleWfRetentionInput(selectEl, rIndex) {
+    const type = selectEl.value;
+    const container = document.getElementById(`retention-value-container-${rIndex}`);
+    if (type === 'PERIOD') {
+      container.innerHTML = '<input type="number" class="route-retention-value w-full sm:w-16 border border-gray-300 rounded px-2 py-0.5 text-center text-sm focus:outline-theme" value="5" min="1" max="99"> <span class="text-xs font-bold text-gray-500 ml-1 shrink-0">' + escapeHTML(t('wfRetentionYearsSuffix')) + '</span>';
+    } else if (type === 'DATE') {
+      container.innerHTML = '<input type="date" class="route-retention-value w-full sm:w-auto border border-gray-300 rounded px-2 py-0.5 text-sm focus:outline-theme" value="">';
+    } else {
+      container.innerHTML = '<input type="hidden" class="route-retention-value" value=""><span class="text-xs font-bold text-gray-400 mr-2 shrink-0">' + escapeHTML(t('wfRetentionNotDiscarded')) + '</span>';
+    }
+  }
+
+  /**
+   * 画面上の入力内容をJavaScriptの変数(wfRoutes)に同期する
+   */
+  function syncWfRoutesFromUI() {
+    const routeCards = document.querySelectorAll('.route-card');
+    const newRoutes = [];
+    routeCards.forEach(card => {
+       const rIndex = card.getAttribute('data-rindex');
+       const routeId = wfRoutes[rIndex].id;
+       const owner = wfRoutes[rIndex].owner;
+       const name = card.querySelector('.route-name').value;
+       const scope = card.querySelector('.route-scope').value;
+       const isActive = card.querySelector('.route-active').checked;
+       
+       const retentionType = card.querySelector('.route-retention-type').value;
+       const retentionValue = card.querySelector('.route-retention-value').value;
+       
+       const steps = [];
+       const stepItems = card.querySelectorAll('.step-item');
+       stepItems.forEach(item => {
+          steps.push({
+             actionType: item.querySelector('.step-action').value,
+             assignee: item.querySelector('.step-assignee').value.trim()
+          });
+       });
+       newRoutes.push({ id: routeId, owner, name, scope, isActive, retentionType, retentionValue, steps });
+    });
+    wfRoutes = newRoutes;
+  }
+
+  /**
+   * 同期したルート情報をバックエンドに送信し、保存する
+   */
+  function saveRoutes() {
+    syncWfRoutesFromUI();
+    for(let r of wfRoutes) {
+       if(!r.name) return showCustomAlert(t('wfErrRouteNameEmpty'), true);
+       if(r.steps.length === 0) return showCustomAlert("「" + r.name + t('wfErrNoSteps'), true);
+       for(let s of r.steps) {
+          if(!s.assignee) return showCustomAlert("「" + r.name + t('wfErrNoAssignee'), true);
+       }
+    }
+
+    const btn = document.getElementById('btn-save-routes');
+    btn.innerText = t('savingSettings');
+    btn.disabled = true;
+    showSpinner(t('wfSavingToDb'));
+
+    google.script.run
+      .withSuccessHandler(() => {
+         btn.innerText = t('wfSaveRoutes');
+         btn.disabled = false;
+         deletedWfRouteIds = [];
+         
+         window.wfRoutesCache = JSON.parse(JSON.stringify(wfRoutes));
+         window.availableRoutesCache = null;
+
+         hideSpinner();
+         showCustomAlert(t('wfSaveSuccess'));
+      })
+      .withFailureHandler(e => {
+         btn.innerText = t('wfSaveRoutes');
+         btn.disabled = false;
+         hideSpinner();
+         showCustomAlert(t('alertSaveFailed') + e.message, true);
+      })
+      .saveWorkflowRoutes(wfRoutes, deletedWfRouteIds);
+  }
+</script>
