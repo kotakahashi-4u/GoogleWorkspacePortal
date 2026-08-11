@@ -77,7 +77,9 @@ Google Workspace (Google Apps Script) だけで構築された、高速・高機
 2. **データベース（DB）として機能する**「新規Googleスプレッドシート」と、**ワークフローの添付ファイルの実体を保管する**「新規Googleドライブフォルダ」を作成し、IDを控えます。
 3.  [従来版code](https://github.com/kotakahashi-4u/GoogleWorkspacePortal/tree/main/code)用の `.html` および `.gs` ファイルを配置します。
 4. 「サービス ＋」から各種API（`Admin SDK API`, `Google Calendar API`, `Google Drive API(v2)`, `Tasks API`）を追加します。
-5. スクリプトプロパティに `LINK_SPREADSHEET_ID` と `WORKFLOW_FOLDER_ID` を設定します。
+5. **スクリプトプロパティ**に以下を設定します。
+   * `LINK_SPREADSHEET_ID` : 手順2で作成したスプレッドシートのID
+   * `WORKFLOW_FOLDER_ID` : 手順2で作成したフォルダのID
 6. `initializeDatabaseSheets` を実行してDBとなるシート群を初期化します。
 7. 以下の設定でデプロイ（ウェブアプリ）を発行して公開します。
    * 次のユーザーとして実行: `ウェブ アプリケーションにアクセスしているユーザー`
