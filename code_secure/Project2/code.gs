@@ -195,6 +195,7 @@ function doPost(e) {
       
       case 'getKanbanTasksDB': out.data = getKanbanTasksDB(); break;
       case 'getKanbanTaskByIdDB': out.data = getKanbanTaskByIdDB(payload.taskId); break;
+      case 'importKanbanTasksDB': out.data = importKanbanTasksDB(payload.newTasks); break;
       case 'addKanbanTaskDB': out.data = addKanbanTaskDB(payload.title, payload.assignee, payload.status, payload.scope, payload.priority, payload.dueDate, payload.googleTaskId); break;
       case 'updateKanbanTaskStatusDB': out.data = updateKanbanTaskStatusDB(payload.taskId, payload.newStatus); break;
       case 'editKanbanTaskDB': out.data = editKanbanTaskDB(payload.taskId, payload.title, payload.assignee, payload.priority, payload.dueDate, payload.scope, payload.googleTaskId); break;
@@ -1502,4 +1503,24 @@ function getPortalMasterData() {
     archiveSchedule: getArchiveSchedule(),
     emergencyMessage: PropertiesService.getScriptProperties().getProperty('EMERGENCY_MESSAGE') || ""
   };
+}
+
+/**
+ * 外部で作成されたGoogle Tasksを一括でカンバンDB（TasksDB）へインポートする
+ * @param {Array<Object>} newTasks - 新規追加するタスク情報の配列
+ * @returns {Array<Object>} 更新後のタスク一覧
+ */
+function importKanbanTasksDB(newTasks) {
+  if (!newTasks || newTasks.length === 0) return getKanbanTasksDB();
+  const sheet = initKanbanSheet();
+  const now = new Date();
+  
+  const newRows = newTasks.map(t => [
+    Utilities.getUuid(), t.title, t.assignee, t.status, t.googleTaskId || '', 
+    now, t.scope || 'PERSONAL', t.priority || 'Medium', t.dueDate || ''
+  ]);
+  
+  sheet.getRange(sheet.getLastRow() + 1, 1, newRows.length, newRows[0].length).setValues(newRows);
+  SpreadsheetApp.flush();
+  return getKanbanTasksDB();
 }
