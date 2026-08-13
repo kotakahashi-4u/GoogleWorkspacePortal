@@ -848,56 +848,96 @@ function saveEmergencyMessage(message) {
 
 /**
  * すべてのカンバンタスクをAPI経由で取得し、個人のGoogle Tasksと自動同期を行う
+ * 外部で作成されたGoogle Tasksはポータル側へ逆同期して一括インポートします。
  * @returns {Array<Object>} タスクデータの配列
  */
 function getKanbanTasks() {
   const tasks = DbProxy.call('getKanbanTasksDB');
   const currentUser = Session.getActiveUser().getEmail();
-  if (!tasks || tasks.length === 0) return [];
+
+  // APIから取得したタスクのGoogle Task IDを保持しておく
+  const dbGoogleTaskIds = new Set();
+  if (tasks && tasks.length > 0) {
+    tasks.forEach(t => {
+      if (t.googleTaskId) dbGoogleTaskIds.add(t.googleTaskId);
+    });
+  }
 
   let googleTasksMap = {};
+  let importedTasks = [];
   try {
     let pageToken;
     do {
       const response = Tasks.Tasks.list('@default', {
-        maxResults: 100, showCompleted: true, showHidden: true, pageToken: pageToken
+        maxResults: 100, showCompleted: true, showHidden: true, showDeleted: true, pageToken: pageToken
       });
       if (response.items) {
-        response.items.forEach(t => { googleTasksMap[t.id] = t.status; });
+        response.items.forEach(t => { 
+          // 削除済みの場合は強制的に 'completed' 扱いとする
+          googleTasksMap[t.id] = t.deleted ? 'completed' : t.status; 
+          
+          // DBに存在しない、かつ未完了・未削除のタスクを逆同期の対象とする
+          if (!dbGoogleTaskIds.has(t.id) && t.status !== 'completed' && !t.deleted) {
+            importedTasks.push(t);
+          }
+        });
       }
       pageToken = response.nextPageToken;
     } while (pageToken);
   } catch(e) {
-    console.error("Google Tasks一括取得エラー:", e);
+    console.error("Google Tasks取得エラー:", e);
   }
 
-  tasks.forEach(task => {
-    if (task.assignee === currentUser && task.status !== 'done') {
-      if (!task.googleTaskId) {
-        try {
-          let gTaskOpts = { title: task.title, notes: "ポータルのカンバンと同期されています。" };
-          if (task.dueDate) gTaskOpts.due = task.dueDate + 'T00:00:00.000Z';
-          const gTask = Tasks.Tasks.insert(gTaskOpts, '@default');
-          task.googleTaskId = gTask.id;
-          
-          DbProxy.call('editKanbanTaskDB', { 
-            taskId: task.id, title: task.title, assignee: task.assignee, 
-            priority: task.priority, dueDate: task.dueDate, scope: task.scope, googleTaskId: gTask.id 
-          });
-        } catch (e) {}
-      } else {
-        try {
-          const gTaskStatus = googleTasksMap[task.googleTaskId];
-          if (gTaskStatus === 'completed') {
-            task.status = 'done';
-            DbProxy.call('updateKanbanTaskStatusDB', { taskId: task.id, newStatus: 'done' });
-          }
-        } catch (e) {}
+  if (tasks && tasks.length > 0) {
+    tasks.forEach(task => {
+      if (task.assignee === currentUser && task.status !== 'done') {
+        if (!task.googleTaskId) {
+          try {
+            let gTaskOpts = { title: task.title, notes: "ポータルのカンバンと同期されています。" };
+            if (task.dueDate) gTaskOpts.due = task.dueDate + 'T00:00:00.000Z';
+            const gTask = Tasks.Tasks.insert(gTaskOpts, '@default');
+            task.googleTaskId = gTask.id;
+            
+            DbProxy.call('editKanbanTaskDB', { 
+              taskId: task.id, title: task.title, assignee: task.assignee, 
+              priority: task.priority, dueDate: task.dueDate, scope: task.scope, googleTaskId: gTask.id 
+            });
+          } catch (e) {}
+        } else {
+          try {
+            const gTaskStatus = googleTasksMap[task.googleTaskId];
+            // APIから返ってこない(undefined)場合も、Google Tasks側で完全に消去されたとみなし「完了」として同期する
+            if (gTaskStatus === 'completed' || gTaskStatus === undefined) {
+              task.status = 'done';
+              DbProxy.call('updateKanbanTaskStatusDB', { taskId: task.id, newStatus: 'done' });
+            }
+          } catch (e) {}
+        }
       }
-    }
-  });
+    });
+  }
 
-  return tasks;
+  // 外部で作成されたGoogle Tasksを一括でDBへ新規追加（逆同期）
+  if (importedTasks.length > 0) {
+    const mappedTasks = importedTasks.map(gTask => {
+      let dueDateStr = '';
+      if (gTask.due) dueDateStr = Utilities.formatDate(new Date(gTask.due), "JST", "yyyy-MM-dd");
+      return {
+        title: gTask.title || '(無題)',
+        assignee: currentUser,
+        status: 'todo',
+        scope: 'PERSONAL',
+        priority: 'Medium',
+        dueDate: dueDateStr,
+        googleTaskId: gTask.id
+      };
+    });
+    // O(1) 通信で一括インポート
+    const updatedTasks = DbProxy.call('importKanbanTasksDB', { newTasks: mappedTasks });
+    return updatedTasks;
+  }
+
+  return tasks || [];
 }
 
 /**
@@ -916,7 +956,7 @@ function addKanbanTask(title, assignee, status, scope, priority, dueDate) {
 
   if (assignee === currentUser) {
     try {
-      let gTaskOpts = { title: title, notes: "🔗 ポータルのカンバンと同期されています。" };
+      let gTaskOpts = { title: title, notes: "ポータルのカンバンと同期されています。" };
       if (dueDate) gTaskOpts.due = dueDate + 'T00:00:00.000Z';
       const gTask = Tasks.Tasks.insert(gTaskOpts, '@default');
       googleTaskId = gTask.id;
@@ -984,7 +1024,7 @@ function editKanbanTask(taskId, title, assignee, priority, dueDate, scope) {
        } catch(e) {}
      } else {
        try {
-         let gTaskOpts = { title: title, notes: "🔗 ポータルのカンバンと同期されています。" };
+         let gTaskOpts = { title: title, notes: "ポータルのカンバンと同期されています。" };
          if (dueDate) gTaskOpts.due = dueDate + 'T00:00:00.000Z';
          const gTask = Tasks.Tasks.insert(gTaskOpts, '@default');
          googleTaskId = gTask.id;
