@@ -83,6 +83,27 @@
    */
   let currentMyTicketsTab = 'active';
 
+  // --- 無限スクロール用 状態管理変数 ---
+  let archiveOffset = 0;
+  let isArchiveLoadingMore = false;
+  let hasMoreArchive = true;
+  let currentArchiveQuery = '';
+  let currentArchiveDateFrom = '';
+  let currentArchiveDateTo = '';
+  const ARCHIVE_FETCH_LIMIT = 50;
+
+  // リスト領域のスクロール検知イベント（無限スクロール発火）
+  document.addEventListener("DOMContentLoaded", () => {
+    document.getElementById("mytickets-list").addEventListener('scroll', function() {
+      if (currentMyTicketsTab === 'archive' && hasMoreArchive && !isArchiveLoadingMore) {
+        // 下部から20px以内に到達したら次をフェッチ
+        if (this.scrollTop + this.clientHeight >= this.scrollHeight - 20) {
+          loadMoreArchivedTickets();
+        }
+      }
+    });
+  });
+
   /**
    * 申請履歴（マイチケット）モーダルを開き、初期化とデータ取得を実行する
    */
@@ -145,7 +166,7 @@
   }
 
   /**
-   * アーカイブされたチケットの検索をバックエンドに要求し、結果を描画する
+   * アーカイブされたチケットの検索をバックエンドに要求し、結果を描画する（初回読み込み）
    */
   function executeArchiveSearch() {
     const query = document.getElementById("archive-search-query").value.trim();
@@ -158,22 +179,73 @@
       return;
     }
     
+    // 無限スクロール用の変数をリセット
+    currentArchiveQuery = query;
+    currentArchiveDateFrom = dateFrom;
+    currentArchiveDateTo = dateTo;
+    archiveOffset = 0;
+    hasMoreArchive = true;
+    
     const container = document.getElementById("mytickets-list");
     container.innerHTML = '<div class="p-10 flex flex-col items-center justify-center text-gray-400 text-sm h-full"><span class="material-symbols-outlined animate-spin mb-2 text-4xl">progress_activity</span>' + escapeHTML(t('myTicketsArchiveSearching')) + '</div>';
     
+    isArchiveLoadingMore = true;
     google.script.run
       .withSuccessHandler(archivedTickets => {
+        isArchiveLoadingMore = false;
+        if(archivedTickets.length < ARCHIVE_FETCH_LIMIT) hasMoreArchive = false;
+        
         if(archivedTickets.length > 0) {
            renderMyTickets(archivedTickets);
+           archiveOffset += ARCHIVE_FETCH_LIMIT;
         } else {
            container.innerHTML = '<div class="text-gray-400 flex flex-col items-center justify-center h-full py-16"><span class="material-symbols-outlined text-5xl mb-3 text-gray-300">search_off</span>' + escapeHTML(t('myTicketsArchiveNoResult')) + '</div>';
         }
       })
       .withFailureHandler(e => {
+        isArchiveLoadingMore = false;
         showCustomAlert(t('myTicketsSearchFailed') + e.message, true);
         container.innerHTML = '';
       })
-      .searchArchivedMyTickets(query, dateFrom, dateTo);
+      .searchArchivedMyTickets(currentArchiveQuery, currentArchiveDateFrom, currentArchiveDateTo, ARCHIVE_FETCH_LIMIT, archiveOffset);
+  }
+
+  /**
+   * 無限スクロールによるアーカイブチケットの追加読み込み
+   */
+  function loadMoreArchivedTickets() {
+    if (isArchiveLoadingMore || !hasMoreArchive) return;
+    isArchiveLoadingMore = true;
+    
+    const container = document.getElementById("mytickets-list");
+    const ul = container.querySelector('ul');
+    if (!ul) return;
+    
+    const spinnerId = 'archive-loading-spinner-' + Date.now();
+    ul.insertAdjacentHTML('beforeend', `<li id="${spinnerId}" class="p-4 text-center text-gray-400 text-xs flex items-center justify-center"><span class="material-symbols-outlined animate-spin mr-2">progress_activity</span>読み込み中...</li>`);
+
+    google.script.run
+      .withSuccessHandler(archivedTickets => {
+        isArchiveLoadingMore = false;
+        const spinner = document.getElementById(spinnerId);
+        if (spinner) spinner.remove();
+
+        if (archivedTickets.length < ARCHIVE_FETCH_LIMIT) hasMoreArchive = false;
+
+        if (archivedTickets.length > 0) {
+          let html = '';
+          archivedTickets.forEach(task => html += generateTicketListItemHtml(task));
+          ul.insertAdjacentHTML('beforeend', html);
+          archiveOffset += ARCHIVE_FETCH_LIMIT;
+        }
+      })
+      .withFailureHandler(e => {
+        isArchiveLoadingMore = false;
+        const spinner = document.getElementById(spinnerId);
+        if (spinner) spinner.remove();
+        console.error("アーカイブの追加読み込みに失敗:", e);
+      })
+      .searchArchivedMyTickets(currentArchiveQuery, currentArchiveDateFrom, currentArchiveDateTo, ARCHIVE_FETCH_LIMIT, archiveOffset);
   }
 
   /**
@@ -207,7 +279,56 @@
   }
 
   /**
-   * チケットの配列を受け取り、リスト領域にHTMLを生成して一括描画する
+   * チケット1件分のHTML（li要素）を生成するヘルパー関数
+   * @param {Object} task - チケットデータ
+   * @returns {string} HTML文字列
+   */
+  function generateTicketListItemHtml(task) {
+    let badgeClass = '';
+    let badgeText = '';
+    
+    // ステータスに応じたバッジのクラスとテキストを判定
+    if (task.status === 'APPROVED') {
+      badgeClass = 'bg-green-100 text-green-700 border-green-200';
+      badgeText = t('statusApproved');
+    } else if (task.status === 'REJECTED') {
+      badgeClass = 'bg-red-100 text-red-700 border-red-200';
+      badgeText = t('statusRejected');
+    } else if (task.status === 'RETURNED') {
+      badgeClass = 'bg-yellow-100 text-yellow-700 border-yellow-200';
+      badgeText = t('statusReturned');
+    } else {
+      badgeClass = 'bg-blue-100 text-blue-700 border-blue-200';
+      badgeText = t('statusPending');
+    }
+
+    // アーカイブデータ判別用のバッジ生成
+    const archiveBadge = task.isArchived 
+      ? '<span class="ml-2 bg-gray-200 text-gray-600 text-[10px] px-1.5 py-0.5 rounded font-bold border border-gray-300 shrink-0">' + escapeHTML(t('badgeArchiveLog')) + '</span>' 
+      : '';
+    
+    // セキュリティ対応: シングルクォートのエスケープ漏れによる属性インジェクション(XSS)を防止
+    const taskJson = encodeURIComponent(JSON.stringify(task)).replace(/'/g, "%27");
+    
+    return `
+      <li class="p-4 hover:bg-gray-50 transition-colors cursor-pointer group" onclick="openApproveModal('${taskJson}')">
+        <div class="flex items-center justify-between mb-2">
+          <div class="flex items-center gap-3 w-full pr-4">
+            <span class="px-2 py-0.5 rounded text-xs font-bold border shrink-0 w-16 text-center ${badgeClass}">${escapeHTML(badgeText)}</span>
+            <span class="text-sm font-bold text-gray-800 group-hover:text-theme transition-colors truncate flex items-center">${escapeHTML(task.subject)}${archiveBadge}</span>
+          </div>
+          <span class="material-symbols-outlined text-gray-300 group-hover:text-theme text-[20px] shrink-0">chevron_right</span>
+        </div>
+        <div class="flex items-center text-xs text-gray-500 gap-4 ml-[85px]">
+          <span class="flex items-center" title="${escapeHTML(t('tooltipAppliedAt'))}"><span class="material-symbols-outlined text-[14px] mr-1">schedule</span>${escapeHTML(task.appliedAt)}</span>
+          ${task.status === 'PENDING' ? `<span class="flex items-center text-blue-500 font-bold" title="${escapeHTML(t('tooltipCurrentStep'))}"><span class="material-symbols-outlined text-[14px] mr-1">trending_flat</span>Step ${escapeHTML(task.currentStep)} / ${escapeHTML(task.totalSteps)}</span>` : ''}
+        </div>
+      </li>
+    `;
+  }
+
+  /**
+   * チケットの配列を受け取り、リスト領域にHTMLを生成して一括描画する（新規・初期描画用）
    * @param {Array<Object>} tickets - 描画するチケット情報の配列
    */
   function renderMyTickets(tickets) {
@@ -219,55 +340,10 @@
 
     let html = '<ul class="divide-y divide-gray-100">';
     tickets.forEach(task => {
-      let badgeClass = '';
-      let badgeText = '';
-      
-      // ステータスに応じたバッジのクラスとテキストを判定
-      if (task.status === 'APPROVED') {
-        badgeClass = 'bg-green-100 text-green-700 border-green-200';
-        badgeText = t('statusApproved');
-      } else if (task.status === 'REJECTED') {
-        badgeClass = 'bg-red-100 text-red-700 border-red-200';
-        badgeText = t('statusRejected');
-      } else if (task.status === 'RETURNED') {
-        badgeClass = 'bg-yellow-100 text-yellow-700 border-yellow-200';
-        badgeText = t('statusReturned');
-      } else {
-        badgeClass = 'bg-blue-100 text-blue-700 border-blue-200';
-        badgeText = t('statusPending');
-      }
-
-      // アーカイブデータ判別用のバッジ生成
-      const archiveBadge = task.isArchived 
-        ? '<span class="ml-2 bg-gray-200 text-gray-600 text-[10px] px-1.5 py-0.5 rounded font-bold border border-gray-300 shrink-0">' + escapeHTML(t('badgeArchiveLog')) + '</span>' 
-        : '';
-      
-      // セキュリティ対応: シングルクォートのエスケープ漏れによる属性インジェクション(XSS)を防止
-      const taskJson = encodeURIComponent(JSON.stringify(task)).replace(/'/g, "%27");
-      
-      html += `
-        <li class="p-4 hover:bg-gray-50 transition-colors cursor-pointer group" onclick="openApproveModal('${taskJson}')">
-          <div class="flex items-center justify-between mb-2">
-            <div class="flex items-center gap-3 w-full pr-4">
-              <span class="px-2 py-0.5 rounded text-xs font-bold border shrink-0 w-16 text-center ${badgeClass}">${escapeHTML(badgeText)}</span>
-              <span class="text-sm font-bold text-gray-800 group-hover:text-theme transition-colors truncate flex items-center">${escapeHTML(task.subject)}${archiveBadge}</span>
-            </div>
-            <span class="material-symbols-outlined text-gray-300 group-hover:text-theme text-[20px] shrink-0">chevron_right</span>
-          </div>
-          <div class="flex items-center text-xs text-gray-500 gap-4 ml-[85px]">
-            <span class="flex items-center" title="${escapeHTML(t('tooltipAppliedAt'))}"><span class="material-symbols-outlined text-[14px] mr-1">schedule</span>${escapeHTML(task.appliedAt)}</span>
-            ${task.status === 'PENDING' ? `<span class="flex items-center text-blue-500 font-bold" title="${escapeHTML(t('tooltipCurrentStep'))}"><span class="material-symbols-outlined text-[14px] mr-1">trending_flat</span>Step ${escapeHTML(task.currentStep)} / ${escapeHTML(task.totalSteps)}</span>` : ''}
-          </div>
-        </li>
-      `;
+      html += generateTicketListItemHtml(task);
     });
     html += '</ul>';
     
-    // 過去ログ検索結果が上限(100件)に達している可能性がある場合のヒント表示
-    if (currentMyTicketsTab === 'archive' && tickets.length === 100) {
-       html += '<div class="p-3 text-center text-xs text-gray-500 bg-yellow-50 border-t border-yellow-100">' + escapeHTML(t('myTicketsTooManyResults')) + '</div>';
-    }
-
     container.innerHTML = html;
   }
 </script>
