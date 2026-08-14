@@ -319,11 +319,14 @@ function saveUserConfig(config) {
 
 /**
  * 実行ユーザーのGmail受信トレイから最新メールを取得する
- * @returns {Array} メールのスレッド情報の配列
+ * 無限スクロール（ページネーション）に対応
+ * @param {number} [offset=0] - 取得開始位置
+ * @param {number} [limit=30] - 取得件数上限
+ * @returns {Array<Object>} メールのスレッド情報の配列
  */
-function getInboxEmails() {
+function getInboxEmails(offset = 0, limit = 30) {
   try {
-    const threads = GmailApp.search('label:inbox', 0, 50); 
+    const threads = GmailApp.search('label:inbox', offset, limit);
     return threads.map(t => {
       const msg = t.getMessages()[t.getMessageCount() - 1];
       let bodyText = msg.getPlainBody() || '';
@@ -482,15 +485,17 @@ function getAllMyGroupMembers() {
 
 /**
  * 指定されたグループ宛のメーリングリスト投稿を取得する
- * スレッドごとにメッセージをまとめ、インライン画像はBase64に変換して返します。
+ * 無限スクロール（ページネーション）に対応
  * @param {string} groupEmail - 対象のグループメールアドレス
+ * @param {number} [offset=0] - 取得開始位置
+ * @param {number} [limit=15] - 取得件数上限
  * @returns {Array|Object} 投稿スレッドの配列、またはエラーオブジェクト
  */
-function getBulletinPosts(groupEmail) {
+function getBulletinPosts(groupEmail, offset = 0, limit = 15) {
   if (!groupEmail) return { error: 'not_configured' };
   if (!getUserGroups().includes(groupEmail)) return { error: 'unauthorized' };
   try {
-    const threads = GmailApp.search(`to:${groupEmail} OR list:${groupEmail}`, 0, 15);
+    const threads = GmailApp.search(`to:${groupEmail} OR list:${groupEmail}`, offset, limit);
     return threads.map(t => {
       const msgs = t.getMessages();
       const firstMsg = msgs[0];
@@ -1115,13 +1120,16 @@ function saveAllAdminSettings(searchEnabled, archiveConfig, newLinks) {
 
 /**
  * 過去のアーカイブ済み申請履歴を検索して取得する
+ * 無限スクロール（ページネーション）に対応
  * @param {string} query - 検索テキスト
  * @param {string} dateFrom - 検索開始日
  * @param {string} dateTo - 検索終了日
+ * @param {number} [limit=50] - 取得件数上限
+ * @param {number} [offset=0] - 取得開始位置
  * @returns {Array<Object>} 検索に合致したアーカイブチケットの配列
  */
-function searchArchivedMyTickets(query, dateFrom, dateTo) {
-  return DbProxy.call('searchArchivedMyTickets', { query: query, dateFrom: dateFrom, dateTo: dateTo });
+function searchArchivedMyTickets(query, dateFrom, dateTo, limit = 50, offset = 0) {
+  return DbProxy.call('searchArchivedMyTickets', { query: query, dateFrom: dateFrom, dateTo: dateTo, limit: limit, offset: offset });
 }
 
 // ==========================================
