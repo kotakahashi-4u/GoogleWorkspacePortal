@@ -206,7 +206,7 @@ function doPost(e) {
       case 'saveArchiveSchedule': out.data = saveArchiveSchedule(payload.config); break;
       case 'runManualArchiveBatch': out.data = runManualArchiveBatch(); break;
       case 'saveAllAdminSettings': out.data = saveAllAdminSettings(payload.searchEnabled, payload.archiveConfig, payload.newLinks); break;
-      case 'searchArchivedMyTickets': out.data = searchArchivedMyTickets(payload.query, payload.dateFrom, payload.dateTo); break;
+      case 'searchArchivedMyTickets': out.data = searchArchivedMyTickets(payload.query, payload.dateFrom, payload.dateTo, payload.limit, payload.offset); break;
 
       default: throw new Error('Unknown API action: ' + action);
     }
@@ -1430,14 +1430,16 @@ function archiveWorkflowTasks(daysThreshold) {
 
 /**
  * 過去のアーカイブ済み申請履歴を検索して取得する
+ * 無限スクロール（ページネーション）に対応
  * @param {string} query - 検索テキスト
  * @param {string} dateFrom - 検索開始日
  * @param {string} dateTo - 検索終了日
- * @returns {Array} 検索に合致したアーカイブチケットの配列
+ * @param {number} [limit=50] - 取得件数上限
+ * @param {number} [offset=0] - 取得開始位置
+ * @returns {Array<Object>} 検索に合致したアーカイブチケットの配列
  */
-function searchArchivedMyTickets(query, dateFrom, dateTo) {
+function searchArchivedMyTickets(query, dateFrom, dateTo, limit = 50, offset = 0) {
   const email = _callerEmail;
-  const LIMIT = 100;
 
   const ss = SpreadsheetApp.openById(getSpreadsheetId());
   const ticketArchiveSheet = ss.getSheetByName('WF_Tickets_Archive');
@@ -1489,7 +1491,8 @@ function searchArchivedMyTickets(query, dateFrom, dateTo) {
     }
   });
   
-  return myTickets.sort((a, b) => new Date(b.appliedAt) - new Date(a.appliedAt)).slice(0, LIMIT);
+  // 取得した全件を降順にソートし、offsetとlimitで切り取って返す（ページネーション）
+  return myTickets.sort((a, b) => new Date(b.appliedAt) - new Date(a.appliedAt)).slice(offset, offset + limit);
 }
 
 /**
