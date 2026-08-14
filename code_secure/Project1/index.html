@@ -2162,6 +2162,12 @@
         }
 
         /**
+         * @type {Object}
+         * 各ウィジェットの無限スクロール状態（オフセット、追加読み込み可否等）を管理
+         */
+        const widgetStates = {};
+
+        /**
          * 指定されたウィジェットのデータを個別で再読み込みします。
          * @param {string} widgetId - ウィジェットID
          */
@@ -2169,6 +2175,12 @@
           if (!currentConfig) return;
           const widget = currentConfig.layout.find(w => w.id === widgetId);
           if (!widget) return;
+          
+          // リフレッシュ時は無限スクロールの状態をリセット
+          if (widgetStates[widgetId]) {
+            widgetStates[widgetId] = { offset: 0, hasMore: true, isLoading: false };
+          }
+          
           const container = document.getElementById(`container-${widgetId}`);
           if (!container) return;
           
@@ -2177,34 +2189,78 @@
         }
 
         /**
-         * ウィジェット種別に応じてデータを読み込みます。
+         * ウィジェット種別に応じてデータを読み込みます。無限スクロールによる追記読み込みにも対応。
          * @param {Object} widget - ウィジェットの設定オブジェクト
+         * @param {boolean} [isLoadMore=false] - 無限スクロールによる追加読み込みかどうかのフラグ
          */
-        function loadWidgetData(widget) {
+        function loadWidgetData(widget, isLoadMore = false) {
+          // 状態管理の初期化
+          if (!widgetStates[widget.id]) {
+            widgetStates[widget.id] = { offset: 0, hasMore: true, isLoading: false };
+          }
+          const state = widgetStates[widget.id];
+
+          // 追加読み込み時、これ以上データがないかロード中の場合はスキップ
+          if (isLoadMore && (!state.hasMore || state.isLoading)) return;
+          
+          state.isLoading = true;
+          const container = document.getElementById(`container-${widget.id}`);
+          
+          // 初回読み込み時のみ、コンテナにスクロール検知イベントを付与
+          if (!isLoadMore && (widget.type === "gmail" || widget.type === "bulletin")) {
+            // 重複付与を防ぐため一度削除
+            container.onscroll = null; 
+            container.onscroll = function() {
+              if (this.scrollTop + this.clientHeight >= this.scrollHeight - 20) {
+                loadWidgetData(widget, true);
+              }
+            };
+          }
+
+          if (isLoadMore) {
+            const ul = container.querySelector('ul');
+            if (ul) ul.insertAdjacentHTML('beforeend', `<li id="loading-${widget.id}" class="p-4 text-center text-xs text-gray-400 flex items-center justify-center"><span class="material-symbols-outlined animate-spin mr-2 align-middle">progress_activity</span>読み込み中...</li>`);
+          }
+
           if (widget.type === "gmail") {
+            const limit = 30; // 描画負荷を考慮し1回の取得を30件に調整
             google.script.run
-              .withSuccessHandler((data) => renderGmail(widget.id, data))
-              .getInboxEmails();
+              .withSuccessHandler((data) => {
+                state.isLoading = false;
+                if (data.length < limit) state.hasMore = false;
+                state.offset += limit;
+                renderGmail(widget.id, data, isLoadMore);
+              })
+              .withFailureHandler(() => { state.isLoading = false; })
+              .getInboxEmails(state.offset, limit);
+              
+          } else if (widget.type === "bulletin") {
+            const limit = 15;
+            google.script.run
+              .withSuccessHandler((data) => {
+                state.isLoading = false;
+                if (data.error) {
+                  renderBulletin(widget.id, data, false);
+                  return;
+                }
+                if (data.length < limit) state.hasMore = false;
+                state.offset += limit;
+                renderBulletin(widget.id, data, isLoadMore);
+              })
+              .withFailureHandler(() => { state.isLoading = false; })
+              .getBulletinPosts(widget.groupEmail, state.offset, limit);
+              
           } else if (widget.type === "drive") {
             renderDriveFrame(widget.id);
           } else if (widget.type === "workflow") {
             google.script.run
               .withSuccessHandler(data => renderWorkflowTasks(widget.id, data))
               .getPendingTasks();
-          } else if (widget.type === "bulletin") {
-            google.script.run
-              .withSuccessHandler((data) => renderBulletin(widget.id, data))
-              .getBulletinPosts(widget.groupEmail);
           } else if (widget.type === "calendar") {
-            const container = document.getElementById(`container-${widget.id}`);
-            if (!container) return;
             try {
               const params = currentConfig.calendarParams || "";
-              const iframeHtml = `<iframe src="https://calendar.google.com/calendar/embed?hl=${userLocale}&ctz=Asia/Tokyo&showTitle=0&showPrint=0&showTabs=1&showCalendars=0${escapeHTML(params)}" style="border-width:0" width="100%" height="100%" frameborder="0" scrolling="no"></iframe>`;
-              container.innerHTML = iframeHtml;
-            } catch (e) {
-              console.error("カレンダー描画エラー:", e);
-            }
+              container.innerHTML = `<iframe src="https://calendar.google.com/calendar/embed?hl=${userLocale}&ctz=Asia/Tokyo&showTitle=0&showPrint=0&showTabs=1&showCalendars=0${escapeHTML(params)}" style="border-width:0" width="100%" height="100%" frameborder="0" scrolling="no"></iframe>`;
+            } catch (e) {}
           } else if (widget.type === "bcp") {
             google.script.run
               .withSuccessHandler(data => renderBcp(widget.id, data))
@@ -2213,26 +2269,31 @@
         }
 
         /**
-         * 社内掲示板ウィジェットの投稿一覧を描画します。
+         * 社内掲示板ウィジェットの投稿一覧を描画（または追記）します。
          * @param {string} id - ウィジェットID
          * @param {Array<Object>} data - 掲示板投稿一覧データ
+         * @param {boolean} [isLoadMore=false] - 追記モードかどうかのフラグ
          */
-        function renderBulletin(id, data) {
+        function renderBulletin(id, data, isLoadMore = false) {
           const container = document.getElementById(`container-${id}`);
+          const loader = document.getElementById(`loading-${id}`);
+          if (loader) loader.remove();
+
           if (data.error === "not_configured" || data.error === "fetch_failed") {
             container.innerHTML = `<div class="p-8 flex flex-col items-center justify-center text-gray-500 text-center h-full"><span class="material-symbols-outlined text-4xl mb-3 text-gray-300">forum</span><p class="mb-4">${escapeHTML(t('noGroupConfigured'))}</p></div>`;
             return;
           }
-          if (!data || data.length === 0) {
-            container.innerHTML =
-              '<div class="text-gray-500 flex flex-col items-center justify-center h-full"><span class="material-symbols-outlined text-4xl mb-2 text-gray-300">chat_bubble_outline</span>' + escapeHTML(t('noPosts')) + '</div>';
+          if (!isLoadMore && (!data || data.length === 0)) {
+            container.innerHTML = '<div class="text-gray-500 flex flex-col items-center justify-center h-full"><span class="material-symbols-outlined text-4xl mb-2 text-gray-300">chat_bubble_outline</span>' + escapeHTML(t('noPosts')) + '</div>';
             return;
           }
 
-          let html = '<ul class="divide-y divide-gray-100">';
           window.bulletinCache = window.bulletinCache || {};
-          window.bulletinCache[id] = data; 
+          // 初回は配列を初期化、追記時は結合する
+          if (!isLoadMore) window.bulletinCache[id] = data; 
+          else window.bulletinCache[id] = window.bulletinCache[id].concat(data);
 
+          let html = '';
           data.forEach((post) => {
             const replyBadge = post.replyCount > 0
                 ? `<span class="ml-2 bg-theme/10 text-theme text-xs px-2 py-0.5 rounded-full font-bold">${post.replyCount}${escapeHTML(t('replyCountSuffix'))}</span>`
@@ -2242,16 +2303,21 @@
                       <div class="flex justify-between items-start mb-1">
                         <div class="flex items-center w-full">
                           <div class="w-8 h-8 rounded-full bg-theme text-white flex items-center justify-center font-bold text-sm mr-3 shrink-0">${escapeHTML(post.from).charAt(0)}</div>
-                          <div class="flex-grow">
-                            <div class="text-sm font-bold text-gray-800 flex items-center">${escapeHTML(post.subject)}${replyBadge}</div>
-                            <div class="text-xs text-gray-500">${escapeHTML(post.from)} <span class="mx-1">•</span> ${escapeHTML(post.date)}</div>
+                          <div class="flex-grow min-w-0">
+                            <div class="text-sm font-bold text-gray-800 flex items-center truncate">${escapeHTML(post.subject)}${replyBadge}</div>
+                            <div class="text-xs text-gray-500 truncate">${escapeHTML(post.from)} <span class="mx-1">•</span> ${escapeHTML(post.date)}</div>
                           </div>
                         </div>
                       </div>
                     </li>`;
           });
-          html += "</ul>";
-          container.innerHTML = html;
+          
+          if (isLoadMore) {
+            const ul = container.querySelector('ul');
+            if (ul) ul.insertAdjacentHTML('beforeend', html);
+          } else {
+            container.innerHTML = '<ul class="divide-y divide-gray-100">' + html + '</ul>';
+          }
         }
 
         /**
@@ -2627,26 +2693,37 @@
         }
 
         /**
-         * Gmail受信トレイウィジェットの一覧を描画します。
+         * Gmail受信トレイウィジェットの一覧を描画（または追記）します。
          * @param {string} id - ウィジェットID
          * @param {Array<Object>} emails - 受信メールリスト
+         * @param {boolean} [isLoadMore=false] - 追記モードかどうかのフラグ
          */
-        function renderGmail(id, emails) {
+        function renderGmail(id, emails, isLoadMore = false) {
           const container = document.getElementById(`container-${id}`);
-          if (!emails || emails.length === 0) {
-            container.innerHTML =
-              '<div class="text-gray-500 flex flex-col items-center justify-center h-full"><span class="material-symbols-outlined text-4xl mb-2 text-gray-300">done_all</span>' + escapeHTML(t('noEmails')) + '</div>';
+          const loader = document.getElementById(`loading-${id}`);
+          if (loader) loader.remove();
+
+          if (!isLoadMore && (!emails || emails.length === 0)) {
+            container.innerHTML = '<div class="text-gray-500 flex flex-col items-center justify-center h-full"><span class="material-symbols-outlined text-4xl mb-2 text-gray-300">done_all</span>' + escapeHTML(t('noEmails')) + '</div>';
             return;
           }
-          let html = '<ul class="divide-y divide-gray-100">';
+
+          let html = '';
           emails.forEach((email) => {
             const fwClass = email.isUnread
               ? "font-bold text-gray-900"
               : "text-gray-600";
             html += `<li class="p-3 hover:bg-gray-50 transition-colors cursor-pointer group relative" onclick="window.open('${email.link}', '_blank')" onmouseenter="showEmailTooltip(event, this)" onmousemove="moveEmailTooltip(event)" onmouseleave="hideEmailTooltip()"><div class="hidden popup-content">${escapeHTML(email.bodyPreview)}</div><div class="flex justify-between items-start mb-1"><span class="text-xs text-gray-500 truncate pr-2">${escapeHTML(email.from)}</span><span class="text-xs text-gray-400 whitespace-nowrap">${escapeHTML(email.date)}</span></div><div class="text-sm ${fwClass} truncate group-hover:text-theme transition-colors">${escapeHTML(email.subject)}</div></li>`;
           });
-          html += "</ul>";
-          container.innerHTML = html;
+
+          if (isLoadMore) {
+            const ul = container.querySelector("ul");
+            if (ul) {
+              ul.innerHTML += html;
+            }
+          } else {
+            container.innerHTML = '<ul class="divide-y divide-gray-100">' + html + "</ul>";
+          }
         }
 
         let emailTooltipEl = null;
