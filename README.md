@@ -43,7 +43,7 @@ Google Workspace (Google Apps Script) だけで構築された、高速・高機
 1. [Google Apps Script](https://script.google.com/)にて「新しいプロジェクト（Project 2）」を作成します。
 2. 本システムの**データベース（DB）として機能する**「新規Googleスプレッドシート」と、**ワークフローの添付ファイルの実体を保管する**「新規Googleドライブフォルダ」を作成し、それぞれのID（URLに含まれる英数字）を控えます。
 3. [セキュア版code_secureのProject2](https://github.com/kotakahashi-4u/GoogleWorkspacePortal/tree/main/code_secure/Project2)用のコード（Code.gs）を配置します。
-4. **スクリプトプロパティ**に以下を設定します。
+4. **スクリプトプロパティ**に以下を設定します。（プロジェクトの設定（歯車マーク）＞下部にあるスクリプトプロパティ）
    * `LINK_SPREADSHEET_ID` : 手順2で作成したスプレッドシートのID
    * `WORKFLOW_FOLDER_ID` : 手順2で作成したフォルダのID
 5. エディタ上部から `initializeDatabaseSheets` を実行し、スプレッドシート内に必要なテーブル（シート群）を自動構築します。
@@ -59,7 +59,7 @@ Google Workspace (Google Apps Script) だけで構築された、高速・高機
    * `Google Calendar API`: グループカレンダーの予定取得や空き会議室検索に使用
    * `Drive API（v2）`: ユーザーのドライブファイル参照や添付ファイルのデータ抽出に使用
    * `Google Tasks API`: 共有カンバンと個人のGoogle Tasks（ToDoリスト）の同期に使用
-4. **スクリプトプロパティ**に以下を設定します。
+4. **スクリプトプロパティ**に以下を設定します。（プロジェクトの設定（歯車マーク）＞下部にあるスクリプトプロパティ）
    * `API_URL` : ステップ1で控えたProject 2のウェブアプリURL *(※このURLを通じてProject 2と通信します)*
 5. 右上の「デプロイ > 新しいデプロイ」から種類を「ウェブアプリ」として選択し、以下で公開します。
    * 次のユーザーとして実行: **`ウェブ アプリケーションにアクセスしているユーザー`** *(※アクセスした本人のGmailやカレンダー、ドライブの個人データを表示するために必須の設定です)*
