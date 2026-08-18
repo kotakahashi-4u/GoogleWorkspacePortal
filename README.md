@@ -57,8 +57,8 @@ Google Workspace (Google Apps Script) だけで構築された、高速・高機
 3. **拡張サービスの有効化**: 「サービス ＋」から以下を追加します。これらは、ユーザーのGoogle Workspaceデータとポータルを連携させるために不可欠なAPIです。
    * `Admin SDK API`: 会議室（リソース）一覧やユーザープロフィールの取得に使用
    * `Google Calendar API`: グループカレンダーの予定取得や空き会議室検索に使用
-   * `Google Drive API（v2）`: ユーザーのドライブファイル参照や添付ファイルのデータ抽出に使用
-   * `Tasks API`: 共有カンバンと個人のGoogle Tasks（ToDoリスト）の同期に使用
+   * `Drive API（v2）`: ユーザーのドライブファイル参照や添付ファイルのデータ抽出に使用
+   * `Google Tasks API`: 共有カンバンと個人のGoogle Tasks（ToDoリスト）の同期に使用
 4. **スクリプトプロパティ**に以下を設定します。
    * `API_URL` : ステップ1で控えたProject 2のウェブアプリURL *(※このURLを通じてProject 2と通信します)*
 5. 右上の「デプロイ > 新しいデプロイ」から種類を「ウェブアプリ」として選択し、以下で公開します。
@@ -76,7 +76,7 @@ Google Workspace (Google Apps Script) だけで構築された、高速・高機
 1. [Google Apps Script](https://script.google.com/)にて「新しいプロジェクト」を作成します。
 2. **データベース（DB）として機能する**「新規Googleスプレッドシート」と、**ワークフローの添付ファイルの実体を保管する**「新規Googleドライブフォルダ」を作成し、IDを控えます。
 3.  [従来版code](https://github.com/kotakahashi-4u/GoogleWorkspacePortal/tree/main/code)用の `.html` および `.gs` ファイルを配置します。
-4. 「サービス ＋」から各種API（`Admin SDK API`, `Google Calendar API`, `Google Drive API(v2)`, `Tasks API`）を追加します。
+4. 「サービス ＋」から各種API（`Admin SDK API`, `Google Calendar API`, `Drive API(v2)`, `Google Tasks API`）を追加します。
 5. **スクリプトプロパティ**に以下を設定します。
    * `LINK_SPREADSHEET_ID` : 手順2で作成したスプレッドシートのID
    * `WORKFLOW_FOLDER_ID` : 手順2で作成したフォルダのID
